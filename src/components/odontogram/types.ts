@@ -1,4 +1,4 @@
-export type ToothStatus = "healthy" | "carie" | "canal" | "extraction" | "implant" | "treated";
+export type ToothStatus = "healthy" | "carie" | "canal" | "extraction" | "implant" | "treated" | "crown" | "adjustment";
 
 export type SurfaceName = "vestibular" | "lingual" | "mesial" | "distal" | "oclusal";
 
@@ -32,6 +32,19 @@ export const STATUS_LABELS: Record<ToothStatus, string> = {
   extraction: "Extração",
   implant: "Implante",
   treated: "Tratado",
+  crown: "Coroa",
+  adjustment: "Ajuste",
+};
+
+export const STATUS_COLORS: Record<ToothStatus, string> = {
+  healthy: "var(--tooth-healthy)",
+  carie: "var(--tooth-carie)",
+  canal: "var(--tooth-canal)",
+  extraction: "var(--tooth-extraction)",
+  implant: "var(--tooth-implant)",
+  treated: "var(--tooth-treated)",
+  crown: "var(--tooth-crown)",
+  adjustment: "var(--tooth-adjustment)",
 };
 
 export const PERMANENT_UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
@@ -56,4 +69,13 @@ export function createEmptyTooth(num: number): ToothData {
       oclusal: { status: "healthy" },
     },
   };
+}
+
+/** Returns the tooth type based on its FDI number */
+export function getToothType(num: number): "molar" | "premolar" | "canine" | "incisor" {
+  const unit = num % 10;
+  if (unit >= 6) return "molar";
+  if (unit >= 4) return "premolar";
+  if (unit === 3) return "canine";
+  return "incisor";
 }

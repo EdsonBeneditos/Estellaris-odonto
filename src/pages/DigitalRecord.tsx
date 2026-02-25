@@ -2,8 +2,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Odontogram } from "@/components/odontogram/Odontogram";
-import { OdontogramData } from "@/components/odontogram/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,23 +20,14 @@ interface Patient {
   data_nascimento: string | null;
 }
 
-interface MedicalRecord {
-  id: string;
-  patient_id: string | null;
-  organization_id: string | null;
-  estado_bucal: OdontogramData;
-  anamnese: string | null;
-}
-
 export default function DigitalRecord() {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const [cpfSearch, setCpfSearch] = useState(searchParams.get("cpf") ?? "");
   const [patient, setPatient] = useState<Patient | null>(null);
-  const [record, setRecord] = useState<MedicalRecord | null>(null);
-  const [odontogramData, setOdontogramData] = useState<OdontogramData>({});
   const [anamnese, setAnamnese] = useState("");
+  const [recordId, setRecordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
@@ -49,7 +38,6 @@ export default function DigitalRecord() {
     if (searchCpf.length < 11) return;
     setSearching(true);
     setPatient(null);
-    setRecord(null);
 
     const { data: patients } = await supabase
       .from("patients")
@@ -68,20 +56,16 @@ export default function DigitalRecord() {
 
     const { data: records } = await supabase
       .from("medical_records")
-      .select("*")
+      .select("id, anamnese")
       .eq("patient_id", p.id)
       .limit(1);
 
     if (records?.length) {
-      const r = records[0];
-      const estado = (r.estado_bucal ?? {}) as unknown as OdontogramData;
-      setRecord({ ...r, estado_bucal: estado });
-      setOdontogramData(estado);
-      setAnamnese(r.anamnese ?? "");
+      setRecordId(records[0].id);
+      setAnamnese(records[0].anamnese ?? "");
     } else {
-      setOdontogramData({});
+      setRecordId(null);
       setAnamnese("");
-      setRecord(null);
     }
     setSearching(false);
   };
@@ -94,48 +78,37 @@ export default function DigitalRecord() {
     }
   }, []);
 
-  const persistRecord = useCallback(async (oData: OdontogramData, anamneseText: string) => {
+  const persistAnamnese = useCallback(async (text: string) => {
     if (!patient || !profile?.organization_id) return;
     setSaving(true);
 
     const payload = {
       patient_id: patient.id,
       organization_id: profile.organization_id,
-      estado_bucal: oData as unknown as Json,
-      anamnese: anamneseText || null,
+      anamnese: text || null,
       updated_at: new Date().toISOString(),
     };
 
-    if (record) {
-      const { error } = await supabase.from("medical_records").update(payload).eq("id", record.id);
-      if (error) toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-      else { setAutoSaved(true); setTimeout(() => setAutoSaved(false), 2000); }
+    if (recordId) {
+      await supabase.from("medical_records").update(payload).eq("id", recordId);
     } else {
-      const { data, error } = await supabase.from("medical_records").insert(payload).select().single();
-      if (error) toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-      else {
-        const estado = (data.estado_bucal ?? {}) as unknown as OdontogramData;
-        setRecord({ ...data, estado_bucal: estado });
-        toast({ title: "Prontuário criado!" });
-      }
+      const { data } = await supabase.from("medical_records").insert(payload).select("id").single();
+      if (data) setRecordId(data.id);
     }
+
     setSaving(false);
-  }, [patient, profile, record, toast]);
+    setAutoSaved(true);
+    setTimeout(() => setAutoSaved(false), 2000);
+  }, [patient, profile, recordId]);
 
-  // Auto-save with debounce
-  const scheduleAutoSave = useCallback((oData: OdontogramData, anamneseText: string) => {
+  const scheduleAutoSave = useCallback((text: string) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => persistRecord(oData, anamneseText), 1500);
-  }, [persistRecord]);
-
-  const handleOdontogramChange = (newData: OdontogramData) => {
-    setOdontogramData(newData);
-    scheduleAutoSave(newData, anamnese);
-  };
+    saveTimerRef.current = setTimeout(() => persistAnamnese(text), 1500);
+  }, [persistAnamnese]);
 
   const handleAnamneseChange = (text: string) => {
     setAnamnese(text);
-    scheduleAutoSave(odontogramData, text);
+    scheduleAutoSave(text);
   };
 
   return (
@@ -151,7 +124,7 @@ export default function DigitalRecord() {
             </span>
           )}
           {patient && (
-            <Button onClick={() => persistRecord(odontogramData, anamnese)} disabled={saving} size="sm">
+            <Button onClick={() => persistAnamnese(anamnese)} disabled={saving} size="sm">
               <Save className="h-4 w-4 mr-2" /> {saving ? "Salvando..." : "Salvar"}
             </Button>
           )}
@@ -195,18 +168,6 @@ export default function DigitalRecord() {
         </Card>
       )}
 
-      {/* Odontogram */}
-      {patient && (
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-display">Odontograma Interativo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Odontogram data={odontogramData} onChange={handleOdontogramChange} />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Anamnese */}
       {patient && (
         <Card className="border-border/50">
@@ -218,7 +179,7 @@ export default function DigitalRecord() {
               value={anamnese}
               onChange={(e) => handleAnamneseChange(e.target.value)}
               placeholder="Histórico clínico, alergias, medicamentos em uso..."
-              rows={6}
+              rows={8}
               className="resize-y"
             />
           </CardContent>

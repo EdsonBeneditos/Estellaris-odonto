@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import DigitalRecord from "./pages/DigitalRecord";
+import OdontogramPage from "./pages/OdontogramPage";
 import Agenda from "./pages/Agenda";
 import Financeiro from "./pages/Financeiro";
 import Configuracoes from "./pages/Configuracoes";
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
             <Route path="/pacientes" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
             <Route path="/prontuario" element={<ProtectedRoute><DigitalRecord /></ProtectedRoute>} />
+            <Route path="/odontograma" element={<ProtectedRoute><OdontogramPage /></ProtectedRoute>} />
             <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><SystemAdmin /></ProtectedRoute>} />
