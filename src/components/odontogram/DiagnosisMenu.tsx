@@ -13,6 +13,8 @@ const STATUS_BADGE_CLASSES: Record<ToothStatus, string> = {
   extraction: "bg-tooth-extraction text-white",
   implant: "bg-tooth-implant text-white",
   treated: "bg-tooth-treated text-white",
+  crown: "bg-tooth-crown text-white",
+  adjustment: "bg-tooth-adjustment text-white",
 };
 
 interface DiagnosisMenuProps {

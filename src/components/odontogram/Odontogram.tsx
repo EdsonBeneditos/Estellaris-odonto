@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { ToothDiagram } from "./ToothDiagram";
-import { DiagnosisMenu } from "./DiagnosisMenu";
+import { ProcedureDialog } from "./ProcedureDialog";
 import {
   OdontogramData, ToothStatus, SurfaceName, createEmptyTooth,
   PERMANENT_UPPER_RIGHT, PERMANENT_UPPER_LEFT, PERMANENT_LOWER_LEFT, PERMANENT_LOWER_RIGHT,
@@ -10,9 +10,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Copy } from "lucide-react";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Copy, CopyCheck } from "lucide-react";
 
 interface OdontogramProps {
   data: OdontogramData;
@@ -21,9 +19,13 @@ interface OdontogramProps {
 
 export function Odontogram({ data, onChange }: OdontogramProps) {
   const [deciduous, setDeciduous] = useState(false);
-  const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [replicateMode, setReplicateMode] = useState(false);
   const [replicateStatus, setReplicateStatus] = useState<ToothStatus>("carie");
+
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogTooth, setDialogTooth] = useState<number>(0);
+  const [dialogSurface, setDialogSurface] = useState<SurfaceName | null>(null);
 
   const upperRight = deciduous ? DECIDUOUS_UPPER_RIGHT : PERMANENT_UPPER_RIGHT;
   const upperLeft = deciduous ? DECIDUOUS_UPPER_LEFT : PERMANENT_UPPER_LEFT;
@@ -36,91 +38,114 @@ export function Odontogram({ data, onChange }: OdontogramProps) {
 
   const toothSize = 42;
   const gap = 6;
-  const centerGap = 16;
+  const centerGap = 18;
   const halfCount = teethPerRow / 2;
   const rowWidth = teethPerRow * toothSize + (teethPerRow - 1) * gap + centerGap;
   const svgWidth = rowWidth + 40;
-  const svgHeight = 2 * toothSize + 80;
+  
+  // Each tooth block height: number(12) + anatomy(size*1.3) + gap(4) + surfaces(size) 
+  const toothBlockH = 12 + toothSize * 1.3 + 4 + toothSize;
+  const archGap = 24;
+  const svgHeight = 2 * toothBlockH + archGap + 40;
 
   const getTooth = (num: number) => data[num] ?? createEmptyTooth(num);
-
-  const updateData = (newData: OdontogramData) => onChange(newData);
-
-  const handleToothClick = (num: number) => {
-    if (replicateMode) {
-      const tooth = getTooth(num);
-      const updated: OdontogramData = {
-        ...data,
-        [num]: {
-          ...tooth,
-          diagnosis: replicateStatus,
-          surfaces: Object.fromEntries(
-            Object.entries(tooth.surfaces).map(([k, v]) => [k, { status: replicateStatus }])
-          ) as any,
-        },
-      };
-      updateData(updated);
-    } else {
-      setSelectedTooth(selectedTooth === num ? null : num);
-    }
-  };
-
-  const handleSurfaceClick = (num: number, surface: SurfaceName) => {
-    if (replicateMode) {
-      const tooth = getTooth(num);
-      updateData({
-        ...data,
-        [num]: {
-          ...tooth,
-          surfaces: { ...tooth.surfaces, [surface]: { status: replicateStatus } },
-        },
-      });
-    }
-  };
-
-  const handleDiagnosisChange = (num: number, status: ToothStatus) => {
-    const tooth = getTooth(num);
-    updateData({ ...data, [num]: { ...tooth, diagnosis: status } });
-  };
-
-  const handleSurfaceChange = (num: number, surface: SurfaceName, status: ToothStatus) => {
-    const tooth = getTooth(num);
-    updateData({
-      ...data,
-      [num]: { ...tooth, surfaces: { ...tooth.surfaces, [surface]: { status } } },
-    });
-  };
 
   const getToothX = (index: number) => {
     const extra = index >= halfCount ? centerGap : 0;
     return 20 + index * (toothSize + gap) + extra;
   };
 
+  // Handlers
+  const handleSurfaceClick = (num: number, surface: SurfaceName) => {
+    if (replicateMode) {
+      const tooth = getTooth(num);
+      onChange({
+        ...data,
+        [num]: {
+          ...tooth,
+          surfaces: { ...tooth.surfaces, [surface]: { status: replicateStatus } },
+        },
+      });
+    } else {
+      setDialogTooth(num);
+      setDialogSurface(surface);
+      setDialogOpen(true);
+    }
+  };
+
+  const handleToothClick = (num: number) => {
+    if (replicateMode) {
+      const tooth = getTooth(num);
+      onChange({
+        ...data,
+        [num]: {
+          ...tooth,
+          diagnosis: replicateStatus,
+          surfaces: Object.fromEntries(
+            Object.entries(tooth.surfaces).map(([k]) => [k, { status: replicateStatus }])
+          ) as any,
+        },
+      });
+    } else {
+      setDialogTooth(num);
+      setDialogSurface(null);
+      setDialogOpen(true);
+    }
+  };
+
+  const handleProcedureSelect = (status: ToothStatus) => {
+    const tooth = getTooth(dialogTooth);
+    if (dialogSurface) {
+      onChange({
+        ...data,
+        [dialogTooth]: {
+          ...tooth,
+          surfaces: { ...tooth.surfaces, [dialogSurface]: { status } },
+        },
+      });
+    } else {
+      onChange({
+        ...data,
+        [dialogTooth]: { ...tooth, diagnosis: status },
+      });
+    }
+    setDialogOpen(false);
+  };
+
+  const replicateOptions: ToothStatus[] = ["carie", "canal", "extraction", "implant", "crown", "adjustment", "treated"];
+
+  const upperY = 16;
+  const lowerY = upperY + toothBlockH + archGap;
+
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="flex flex-wrap items-center gap-5">
         <div className="flex items-center gap-2">
-          <Switch id="deciduous" checked={deciduous} onCheckedChange={(v) => { setDeciduous(v); setSelectedTooth(null); }} />
+          <Switch id="deciduous" checked={deciduous} onCheckedChange={(v) => { setDeciduous(v); }} />
           <Label htmlFor="deciduous" className="text-sm">Dentes Decíduos</Label>
         </div>
 
         <div className="flex items-center gap-2">
           <Switch id="replicate" checked={replicateMode} onCheckedChange={setReplicateMode} />
           <Label htmlFor="replicate" className="text-sm flex items-center gap-1.5">
-            <Copy className="h-3.5 w-3.5" /> Replicar Tratamento
+            {replicateMode ? <CopyCheck className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
+            Replicar Tratamento
           </Label>
         </div>
 
         {replicateMode && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground">Aplicar:</span>
-            {(["carie", "canal", "extraction", "implant", "treated"] as ToothStatus[]).map((s) => (
+            {replicateOptions.map((s) => (
               <Badge
                 key={s}
                 variant="outline"
-                className={`cursor-pointer text-xs ${replicateStatus === s ? "ring-2 ring-ring" : ""}`}
-                style={{ backgroundColor: replicateStatus === s ? `hsl(var(--tooth-${s}))` : undefined, color: replicateStatus === s ? "white" : undefined }}
+                className={`cursor-pointer text-xs transition-all ${replicateStatus === s ? "ring-2 ring-ring shadow-sm" : ""}`}
+                style={{
+                  backgroundColor: replicateStatus === s ? `hsl(var(--tooth-${s}))` : undefined,
+                  color: replicateStatus === s ? "white" : undefined,
+                }}
                 onClick={() => setReplicateStatus(s)}
               >
                 {STATUS_LABELS[s]}
@@ -132,7 +157,7 @@ export function Odontogram({ data, onChange }: OdontogramProps) {
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3">
-        {(["healthy", "carie", "canal", "extraction", "implant", "treated"] as ToothStatus[]).map((s) => (
+        {(["healthy", "carie", "canal", "extraction", "implant", "treated", "crown", "adjustment"] as ToothStatus[]).map((s) => (
           <div key={s} className="flex items-center gap-1.5">
             <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: `hsl(var(--tooth-${s}))` }} />
             <span className="text-[11px] text-muted-foreground">{STATUS_LABELS[s]}</span>
@@ -140,57 +165,45 @@ export function Odontogram({ data, onChange }: OdontogramProps) {
         ))}
       </div>
 
-      {/* SVG Odontogram */}
-      <div className="overflow-x-auto rounded-lg border border-border bg-card p-4">
+      {/* SVG */}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card p-4 shadow-sm">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full max-w-4xl mx-auto"
-          style={{ minWidth: 600 }}
+          className="w-full max-w-5xl mx-auto"
+          style={{ minWidth: 640 }}
         >
-          {/* Upper arch label */}
-          <text x={svgWidth / 2} y={14} textAnchor="middle" className="text-[11px] font-medium" fill="hsl(var(--muted-foreground))">
-            Arcada Superior
-          </text>
-
-          {/* Upper row */}
-          {upperRow.map((num, i) => (
-            <ToothDiagram
-              key={num}
-              tooth={getTooth(num)}
-              x={getToothX(i)}
-              y={24}
-              size={toothSize}
-              selected={selectedTooth === num}
-              onToothClick={handleToothClick}
-              onSurfaceClick={handleSurfaceClick}
-            />
-          ))}
-
           {/* Midline */}
           <line
-            x1={svgWidth / 2}
-            y1={20}
-            x2={svgWidth / 2}
-            y2={svgHeight - 10}
+            x1={svgWidth / 2} y1={8}
+            x2={svgWidth / 2} y2={svgHeight - 4}
             stroke="hsl(var(--border))"
             strokeWidth={1}
             strokeDasharray="4 4"
           />
 
-          {/* Lower arch label */}
-          <text x={svgWidth / 2} y={toothSize + 52} textAnchor="middle" className="text-[11px] font-medium" fill="hsl(var(--muted-foreground))">
-            Arcada Inferior
-          </text>
+          {/* Upper arch */}
+          {upperRow.map((num, i) => (
+            <ToothDiagram
+              key={num}
+              tooth={getTooth(num)}
+              x={getToothX(i)}
+              y={upperY}
+              size={toothSize}
+              isUpper
+              onToothClick={handleToothClick}
+              onSurfaceClick={handleSurfaceClick}
+            />
+          ))}
 
-          {/* Lower row */}
+          {/* Lower arch */}
           {lowerRow.map((num, i) => (
             <ToothDiagram
               key={num}
               tooth={getTooth(num)}
               x={getToothX(i)}
-              y={toothSize + 58}
+              y={lowerY}
               size={toothSize}
-              selected={selectedTooth === num}
+              isUpper={false}
               onToothClick={handleToothClick}
               onSurfaceClick={handleSurfaceClick}
             />
@@ -198,17 +211,14 @@ export function Odontogram({ data, onChange }: OdontogramProps) {
         </svg>
       </div>
 
-      {/* Diagnosis panel */}
-      {selectedTooth && !replicateMode && (
-        <DiagnosisMenu
-          toothNumber={selectedTooth}
-          currentDiagnosis={getTooth(selectedTooth).diagnosis}
-          surfaces={getTooth(selectedTooth).surfaces}
-          onDiagnosisChange={handleDiagnosisChange}
-          onSurfaceChange={handleSurfaceChange}
-          onClose={() => setSelectedTooth(null)}
-        />
-      )}
+      {/* Procedure dialog */}
+      <ProcedureDialog
+        open={dialogOpen}
+        toothNumber={dialogTooth}
+        surfaceName={dialogSurface}
+        onSelect={handleProcedureSelect}
+        onClose={() => setDialogOpen(false)}
+      />
     </div>
   );
 }

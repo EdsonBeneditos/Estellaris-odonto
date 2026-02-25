@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Users,
   FileHeart,
+  SmilePlus,
   DollarSign,
   Settings,
   LogOut,
@@ -33,6 +34,7 @@ const navItems = [
   { title: "Agenda", url: "/agenda", icon: CalendarDays },
   { title: "Pacientes", url: "/pacientes", icon: Users },
   { title: "Prontuário", url: "/prontuario", icon: FileHeart },
+  { title: "Odontograma", url: "/odontograma", icon: SmilePlus },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ];
