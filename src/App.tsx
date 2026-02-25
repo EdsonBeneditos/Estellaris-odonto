@@ -9,6 +9,9 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import DigitalRecord from "./pages/DigitalRecord";
+import Agenda from "./pages/Agenda";
+import Financeiro from "./pages/Financeiro";
+import Configuracoes from "./pages/Configuracoes";
 import SystemAdmin from "./pages/SystemAdmin";
 import NotFound from "./pages/NotFound";
 
@@ -38,8 +41,11 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<AuthRoute />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
             <Route path="/pacientes" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
             <Route path="/prontuario" element={<ProtectedRoute><DigitalRecord /></ProtectedRoute>} />
+            <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><SystemAdmin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

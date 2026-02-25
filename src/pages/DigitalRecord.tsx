@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Odontogram } from "@/components/odontogram/Odontogram";
-import { OdontogramData, createEmptyTooth } from "@/components/odontogram/types";
+import { OdontogramData } from "@/components/odontogram/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { formatCPF } from "@/lib/validators";
-import { Search, Save, FileHeart, User } from "lucide-react";
+import { Search, Save, FileHeart, User, CheckCircle2 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
 interface Patient {
@@ -41,6 +41,8 @@ export default function DigitalRecord() {
   const [anamnese, setAnamnese] = useState("");
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchPatient = async (cpf?: string) => {
     const searchCpf = (cpf ?? cpfSearch).replace(/\D/g, "");
@@ -64,7 +66,6 @@ export default function DigitalRecord() {
     const p = patients[0];
     setPatient(p);
 
-    // Load medical record
     const { data: records } = await supabase
       .from("medical_records")
       .select("*")
@@ -93,33 +94,24 @@ export default function DigitalRecord() {
     }
   }, []);
 
-  const handleSave = async () => {
+  const persistRecord = useCallback(async (oData: OdontogramData, anamneseText: string) => {
     if (!patient || !profile?.organization_id) return;
     setSaving(true);
 
     const payload = {
       patient_id: patient.id,
       organization_id: profile.organization_id,
-      estado_bucal: odontogramData as unknown as Json,
-      anamnese: anamnese || null,
+      estado_bucal: oData as unknown as Json,
+      anamnese: anamneseText || null,
       updated_at: new Date().toISOString(),
     };
 
     if (record) {
-      const { error } = await supabase
-        .from("medical_records")
-        .update(payload)
-        .eq("id", record.id);
-
+      const { error } = await supabase.from("medical_records").update(payload).eq("id", record.id);
       if (error) toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-      else toast({ title: "Prontuário atualizado!" });
+      else { setAutoSaved(true); setTimeout(() => setAutoSaved(false), 2000); }
     } else {
-      const { data, error } = await supabase
-        .from("medical_records")
-        .insert(payload)
-        .select()
-        .single();
-
+      const { data, error } = await supabase.from("medical_records").insert(payload).select().single();
       if (error) toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
       else {
         const estado = (data.estado_bucal ?? {}) as unknown as OdontogramData;
@@ -128,6 +120,22 @@ export default function DigitalRecord() {
       }
     }
     setSaving(false);
+  }, [patient, profile, record, toast]);
+
+  // Auto-save with debounce
+  const scheduleAutoSave = useCallback((oData: OdontogramData, anamneseText: string) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => persistRecord(oData, anamneseText), 1500);
+  }, [persistRecord]);
+
+  const handleOdontogramChange = (newData: OdontogramData) => {
+    setOdontogramData(newData);
+    scheduleAutoSave(newData, anamnese);
+  };
+
+  const handleAnamneseChange = (text: string) => {
+    setAnamnese(text);
+    scheduleAutoSave(odontogramData, text);
   };
 
   return (
@@ -136,30 +144,29 @@ export default function DigitalRecord() {
         <h1 className="text-2xl font-display font-bold flex items-center gap-2">
           <FileHeart className="h-6 w-6 text-primary" /> Prontuário Digital
         </h1>
-        {patient && (
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4 mr-2" /> {saving ? "Salvando..." : "Salvar Prontuário"}
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {autoSaved && (
+            <span className="flex items-center gap-1 text-xs text-accent animate-in fade-in">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Salvo
+            </span>
+          )}
+          {patient && (
+            <Button onClick={() => persistRecord(odontogramData, anamnese)} disabled={saving} size="sm">
+              <Save className="h-4 w-4 mr-2" /> {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
       <Card className="border-border/50">
         <CardContent className="p-4">
-          <form
-            onSubmit={(e) => { e.preventDefault(); searchPatient(); }}
-            className="flex gap-3 items-end"
-          >
+          <form onSubmit={(e) => { e.preventDefault(); searchPatient(); }} className="flex gap-3 items-end">
             <div className="flex-1 max-w-xs space-y-1.5">
               <Label className="text-xs">Buscar paciente por CPF</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-10"
-                  placeholder="000.000.000-00"
-                  value={cpfSearch}
-                  onChange={(e) => setCpfSearch(formatCPF(e.target.value))}
-                />
+                <Input className="pl-10" placeholder="000.000.000-00" value={cpfSearch} onChange={(e) => setCpfSearch(formatCPF(e.target.value))} />
               </div>
             </div>
             <Button type="submit" variant="secondary" disabled={searching}>
@@ -195,7 +202,7 @@ export default function DigitalRecord() {
             <CardTitle className="text-lg font-display">Odontograma Interativo</CardTitle>
           </CardHeader>
           <CardContent>
-            <Odontogram data={odontogramData} onChange={setOdontogramData} />
+            <Odontogram data={odontogramData} onChange={handleOdontogramChange} />
           </CardContent>
         </Card>
       )}
@@ -209,7 +216,7 @@ export default function DigitalRecord() {
           <CardContent>
             <Textarea
               value={anamnese}
-              onChange={(e) => setAnamnese(e.target.value)}
+              onChange={(e) => handleAnamneseChange(e.target.value)}
               placeholder="Histórico clínico, alergias, medicamentos em uso..."
               rows={6}
               className="resize-y"
