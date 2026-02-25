@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Odontogram } from "@/components/odontogram/Odontogram";
-import { OdontogramData } from "@/components/odontogram/types";
+import { OdontogramData, OdontogramMeta, DEFAULT_META } from "@/components/odontogram/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,11 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCPF } from "@/lib/validators";
 import { Search, Save, SmilePlus, UserPlus, CheckCircle2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -29,6 +25,7 @@ export default function OdontogramPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [odontogramData, setOdontogramData] = useState<OdontogramData>({});
+  const [meta, setMeta] = useState<OdontogramMeta>(DEFAULT_META);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -68,19 +65,18 @@ export default function OdontogramPage() {
     }
     setSaving(true);
 
-    // Check if record exists
+    const payload = {
+      patient_id: patient.id,
+      organization_id: profile.organization_id,
+      estado_bucal: { teeth: odontogramData, meta } as unknown as Json,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data: existing } = await supabase
       .from("medical_records")
       .select("id")
       .eq("patient_id", patient.id)
       .limit(1);
-
-    const payload = {
-      patient_id: patient.id,
-      organization_id: profile.organization_id,
-      estado_bucal: odontogramData as unknown as Json,
-      updated_at: new Date().toISOString(),
-    };
 
     if (existing?.length) {
       await supabase.from("medical_records").update(payload).eq("id", existing[0].id);
@@ -91,8 +87,8 @@ export default function OdontogramPage() {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-    toast({ title: "Odontograma salvo!" });
-  }, [patient, profile, odontogramData, toast]);
+    toast({ title: "Odontograma salvo com sucesso!" });
+  }, [patient, profile, odontogramData, meta, toast]);
 
   return (
     <div className="space-y-5">
@@ -123,10 +119,17 @@ export default function OdontogramPage() {
         </div>
       </div>
 
-      {/* Odontogram card */}
+      {/* Odontogram */}
       <Card className="border-border/50 shadow-sm">
         <CardContent className="p-5">
-          <Odontogram data={odontogramData} onChange={setOdontogramData} />
+          <Odontogram
+            data={odontogramData}
+            meta={meta}
+            onChange={setOdontogramData}
+            onMetaChange={setMeta}
+            profileId={profile?.id}
+            profileName={profile?.id_nome}
+          />
         </CardContent>
       </Card>
 
@@ -136,13 +139,10 @@ export default function OdontogramPage() {
           <DialogHeader>
             <DialogTitle className="font-display">Vincular Paciente</DialogTitle>
             <DialogDescription>
-              Busque pelo CPF para vincular este odontograma a um paciente.
+              Busque pelo CPF para vincular este odontograma a um paciente cadastrado.
             </DialogDescription>
           </DialogHeader>
-          <form
-            onSubmit={(e) => { e.preventDefault(); searchAndLink(); }}
-            className="space-y-4 pt-2"
-          >
+          <form onSubmit={(e) => { e.preventDefault(); searchAndLink(); }} className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label className="text-xs">CPF do Paciente</Label>
               <div className="relative">

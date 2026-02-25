@@ -46,6 +46,10 @@
     --sidebar-ring: 170 55% 50%;
 
     --tooth-healthy: 220 15% 90%;
+    --tooth-diagnosis: 0 72% 51%;
+    --tooth-in-progress: 45 90% 50%;
+    --tooth-completed: 210 70% 50%;
+
     --tooth-carie: 0 72% 51%;
     --tooth-canal: 30 80% 50%;
     --tooth-extraction: 220 15% 25%;
@@ -100,6 +104,10 @@
     --sidebar-ring: 170 55% 50%;
 
     --tooth-healthy: 220 15% 25%;
+    --tooth-diagnosis: 0 62% 45%;
+    --tooth-in-progress: 45 80% 45%;
+    --tooth-completed: 210 60% 45%;
+
     --tooth-carie: 0 62% 45%;
     --tooth-canal: 30 70% 45%;
     --tooth-extraction: 220 10% 15%;

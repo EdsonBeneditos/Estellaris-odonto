@@ -1,20 +1,5 @@
-import { ToothData, SurfaceName, ToothStatus } from "./types";
+import { ToothData, SurfaceName, getSurfaceColor } from "./types";
 import { AnatomicalTooth } from "./AnatomicalTooth";
-
-function hslColor(cssVar: string) {
-  return `hsl(${cssVar})`;
-}
-
-const STATUS_COLORS: Record<ToothStatus, string> = {
-  healthy: "var(--tooth-healthy)",
-  carie: "var(--tooth-carie)",
-  canal: "var(--tooth-canal)",
-  extraction: "var(--tooth-extraction)",
-  implant: "var(--tooth-implant)",
-  treated: "var(--tooth-treated)",
-  crown: "var(--tooth-crown)",
-  adjustment: "var(--tooth-adjustment)",
-};
 
 interface ToothDiagramProps {
   tooth: ToothData;
@@ -29,14 +14,11 @@ interface ToothDiagramProps {
 
 export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToothClick, onSurfaceClick }: ToothDiagramProps) {
   const s = size;
-  const anatomicalH = s * 1.3;
+  const anatomicalH = s * 1.4;
   const surfaceBlockSize = s;
-  const gapBetween = 4;
-
-  // Layout: upper = number → anatomy → surfaces (top to bottom)
-  // lower = surfaces → anatomy → number (top to bottom)
+  const gapBetween = 3;
   const numberFontSize = 9;
-  const numberH = 12;
+  const numberH = 13;
 
   let numberY: number, anatomyY: number, surfaceY: number;
   if (isUpper) {
@@ -49,8 +31,8 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
     numberY = anatomyY + anatomicalH;
   }
 
-  // Surface grid
-  const inner = surfaceBlockSize * 0.3;
+  // Surface grid geometry
+  const inner = surfaceBlockSize * 0.28;
   const outerPad = (surfaceBlockSize - inner * 2) / 2;
   const sx = x;
   const sy = surfaceY;
@@ -66,15 +48,17 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
     { name: "oclusal", points: `${ix},${iy} ${ix + iw},${iy} ${ix + iw},${iy + iw} ${ix},${iy + iw}` },
   ];
 
+  const hasConditions = tooth.conditions.length > 0;
+
   return (
     <g className="cursor-pointer">
       {/* Tooth number */}
       <text
         x={x + s / 2}
-        y={isUpper ? numberY + numberFontSize : numberY + numberH}
+        y={isUpper ? numberY + numberFontSize + 1 : numberY + numberH}
         textAnchor="middle"
         className="select-none"
-        style={{ fontSize: numberFontSize, fontWeight: 600 }}
+        style={{ fontSize: numberFontSize, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}
         fill="hsl(var(--foreground))"
       >
         {tooth.number}
@@ -87,21 +71,17 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
         y={anatomyY}
         size={s}
         isUpper={isUpper}
-        diagnosis={tooth.diagnosis}
+        phase={tooth.phase}
+        hasConditions={hasConditions}
       />
 
-      {/* Selection highlight around surfaces */}
+      {/* Selection ring */}
       {selected && (
         <rect
-          x={sx - 2}
-          y={sy - 2}
-          width={s + 4}
-          height={s + 4}
-          rx={3}
-          fill="none"
-          stroke="hsl(var(--ring))"
-          strokeWidth={2}
-          strokeDasharray="4 2"
+          x={sx - 2} y={sy - 2}
+          width={s + 4} height={s + 4}
+          rx={3} fill="none"
+          stroke="hsl(var(--ring))" strokeWidth={2} strokeDasharray="4 2"
         />
       )}
 
@@ -110,33 +90,34 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
         <polygon
           key={surf.name}
           points={surf.points}
-          fill={hslColor(STATUS_COLORS[tooth.surfaces[surf.name].status])}
+          fill={getSurfaceColor(tooth.surfaces[surf.name])}
           className="tooth-surface"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSurfaceClick(tooth.number, surf.name);
-          }}
+          onClick={(e) => { e.stopPropagation(); onSurfaceClick(tooth.number, surf.name); }}
         >
-          <title>{surf.name.charAt(0).toUpperCase() + surf.name.slice(1)}: {tooth.surfaces[surf.name].status}</title>
+          <title>{surf.name}: {tooth.surfaces[surf.name].condition}</title>
         </polygon>
       ))}
 
-      {/* Whole-tooth click area (anatomy) */}
+      {/* Click area over anatomy */}
       <rect
-        x={x}
-        y={anatomyY}
-        width={s}
-        height={anatomicalH}
+        x={x} y={anatomyY}
+        width={s} height={anatomicalH}
         fill="transparent"
         onClick={() => onToothClick(tooth.number)}
       />
 
-      {/* Extraction X */}
-      {tooth.diagnosis === "extraction" && (
-        <>
-          <line x1={sx + 4} y1={sy + 4} x2={sx + s - 4} y2={sy + s - 4} stroke="hsl(var(--destructive))" strokeWidth={2.5} />
-          <line x1={sx + s - 4} y1={sy + 4} x2={sx + 4} y2={sy + s - 4} stroke="hsl(var(--destructive))" strokeWidth={2.5} />
-        </>
+      {/* Condition abbreviations below surfaces */}
+      {hasConditions && (
+        <text
+          x={x + s / 2}
+          y={isUpper ? surfaceY + surfaceBlockSize + 10 : surfaceY - 4}
+          textAnchor="middle"
+          style={{ fontSize: 7, fontWeight: 500 }}
+          fill="hsl(var(--muted-foreground))"
+          className="select-none"
+        >
+          {tooth.conditions.length > 2 ? `${tooth.conditions.length} cond.` : ""}
+        </text>
       )}
     </g>
   );
