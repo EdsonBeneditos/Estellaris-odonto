@@ -85,6 +85,7 @@ export type Database = {
           cpf: string
           created_at: string | null
           data_nascimento: string | null
+          email: string | null
           id: string
           nome_completo: string
           organization_id: string | null
@@ -94,6 +95,7 @@ export type Database = {
           cpf: string
           created_at?: string | null
           data_nascimento?: string | null
+          email?: string | null
           id?: string
           nome_completo: string
           organization_id?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           cpf?: string
           created_at?: string | null
           data_nascimento?: string | null
+          email?: string | null
           id?: string
           nome_completo?: string
           organization_id?: string | null
