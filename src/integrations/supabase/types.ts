@@ -127,6 +127,7 @@ export type Database = {
           created_at: string | null
           id: string
           id_nome: string
+          is_system_admin: boolean | null
           organization_id: string | null
         }
         Insert: {
@@ -134,6 +135,7 @@ export type Database = {
           created_at?: string | null
           id: string
           id_nome: string
+          is_system_admin?: boolean | null
           organization_id?: string | null
         }
         Update: {
@@ -141,6 +143,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           id_nome?: string
+          is_system_admin?: boolean | null
           organization_id?: string | null
         }
         Relationships: [
