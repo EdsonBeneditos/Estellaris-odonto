@@ -22,7 +22,12 @@ export default function Auth() {
     setLoading(true);
 
     if (isSignUp) {
-      const { error } = await signUp(email, password, idNome, nomeClinica);
+      if (!idNome.trim() || !nomeClinica.trim()) {
+        toast({ title: "Preencha todos os campos", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      const { error } = await signUp(email, password, idNome.trim(), nomeClinica.trim());
       if (error) {
         toast({ title: "Erro no cadastro", description: error.message, variant: "destructive" });
       } else {

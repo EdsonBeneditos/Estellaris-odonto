@@ -22,6 +22,7 @@ interface AuthContextType {
   profile: Profile | null;
   organization: Organization | null;
   loading: boolean;
+  isSuperAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, idNome: string, nomeClinica: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (userId: string) => {
@@ -54,6 +56,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrganization(org);
       }
     }
+
+    // Check super admin role via has_role function
+    const { data: roleCheck } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "super_admin",
+    });
+    setIsSuperAdmin(roleCheck === true);
   };
 
   useEffect(() => {
@@ -72,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setProfile(null);
         setOrganization(null);
+        setIsSuperAdmin(false);
       }
       setLoading(false);
     });
@@ -85,27 +95,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, idNome: string, nomeClinica: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error || !data.user) return { error: error as Error | null };
-
-    // Create organization
-    const { data: org, error: orgError } = await supabase
-      .from("organizations")
-      .insert({ nome_clinica: nomeClinica })
-      .select()
-      .single();
-
-    if (orgError || !org) return { error: orgError as Error | null };
-
-    // Create profile
-    const { error: profError } = await supabase.from("profiles").insert({
-      id: data.user.id,
-      id_nome: idNome,
-      organization_id: org.id,
-      cargo: "Dentista",
+    // Trigger handle_new_user cuida de criar org + profile + role via metadata
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          id_nome: idNome,
+          nome_clinica: nomeClinica,
+        },
+      },
     });
-
-    return { error: profError as Error | null };
+    return { error: error as Error | null };
   };
 
   const signOut = async () => {
@@ -113,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, organization, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, organization, loading, isSuperAdmin, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

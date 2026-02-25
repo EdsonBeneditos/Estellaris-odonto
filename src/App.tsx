@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import DigitalRecord from "./pages/DigitalRecord";
+import SystemAdmin from "./pages/SystemAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/pacientes" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
             <Route path="/prontuario" element={<ProtectedRoute><DigitalRecord /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><SystemAdmin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

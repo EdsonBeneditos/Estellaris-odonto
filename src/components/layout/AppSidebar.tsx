@@ -9,9 +9,9 @@ import {
   Moon,
   Sun,
   Activity,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -40,8 +40,7 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-  const { profile, organization, signOut } = useAuth();
+  const { profile, organization, isSuperAdmin, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -78,6 +77,22 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Super Admin - hidden tab */}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Admin Sistema">
+                    <NavLink
+                      to="/admin"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      <span>Admin Sistema</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
