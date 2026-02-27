@@ -7,8 +7,6 @@ import {
   DollarSign,
   Settings,
   LogOut,
-  Moon,
-  Sun,
   Activity,
   ShieldCheck,
   FileText,
@@ -16,7 +14,6 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/hooks/useTheme";
 import {
   Sidebar,
   SidebarContent,
@@ -47,7 +44,6 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { profile, organization, isSuperAdmin, signOut } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -104,10 +100,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border px-3 py-3 space-y-2">
-        <Button variant="ghost" size="sm" onClick={toggleTheme} className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          {!collapsed && <span className="text-xs">{theme === "dark" ? "Modo Claro" : "Modo Escuro"}</span>}
-        </Button>
         {!collapsed && profile && (
           <div className="flex items-center gap-2 px-2 py-1">
             <div className="h-7 w-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-xs font-bold text-sidebar-primary">

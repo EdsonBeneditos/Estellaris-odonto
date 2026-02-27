@@ -45,17 +45,17 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   const teethPerRow = upperRow.length;
   const allTeeth = [...upperRow, ...lowerRow];
 
-  // Reduced size: 28px per tooth (was 40)
-  const toothSize = deciduous ? 24 : 28;
+  // Same visual size for permanent and deciduous
+  const toothSize = 28;
   const gap = 3;
   const centerGap = 14;
   const halfCount = teethPerRow / 2;
   const rowWidth = teethPerRow * toothSize + (teethPerRow - 1) * gap + centerGap;
   const svgWidth = rowWidth + 30;
-  const crownH = toothSize * 0.9;
-  const surfaceH = toothSize * 0.85;
-  const toothBlockH = 10 + crownH + 2 + surfaceH + 8;
-  const archGap = 14;
+  const toothH = toothSize; // crown + root
+  const surfaceH = toothSize * 0.75;
+  const toothBlockH = 9 + toothH + 2 + surfaceH + 8;
+  const archGap = 10;
   const svgHeight = 2 * toothBlockH + archGap + 6;
 
   const getTooth = (num: number) => data[num] ?? createEmptyTooth(num);

@@ -191,25 +191,31 @@ export type Database = {
         Row: {
           cargo: string | null
           created_at: string | null
+          data_vencimento_cro: string | null
           id: string
           id_nome: string
           is_system_admin: boolean | null
+          numero_cro: string | null
           organization_id: string | null
         }
         Insert: {
           cargo?: string | null
           created_at?: string | null
+          data_vencimento_cro?: string | null
           id: string
           id_nome: string
           is_system_admin?: boolean | null
+          numero_cro?: string | null
           organization_id?: string | null
         }
         Update: {
           cargo?: string | null
           created_at?: string | null
+          data_vencimento_cro?: string | null
           id?: string
           id_nome?: string
           is_system_admin?: boolean | null
+          numero_cro?: string | null
           organization_id?: string | null
         }
         Relationships: [

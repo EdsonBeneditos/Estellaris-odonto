@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, List, LayoutGrid, Clock, Trash2 } from "lucide-react";
 import { formatCPF } from "@/lib/validators";
@@ -55,11 +55,9 @@ export default function Agenda() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Day detail dialog
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dayDialogOpen, setDayDialogOpen] = useState(false);
 
-  // New appointment dialog
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newTimeStart, setNewTimeStart] = useState("08:00");
   const [newTimeEnd, setNewTimeEnd] = useState("08:30");
@@ -93,11 +91,12 @@ export default function Agenda() {
 
   const getApptsForDate = (date: Date) => appointments.filter(a => isSameDay(parseISO(a.appointment_date), date));
 
+  // Slot logic: yellow if any slot exists, red only if ALL slots have a patient linked
   const getDayStatus = (date: Date): "none" | "has_slots" | "full" => {
     const dayAppts = getApptsForDate(date);
     if (dayAppts.length === 0) return "none";
-    if (dayAppts.length >= 20) return "full";
-    return "has_slots";
+    const allLinked = dayAppts.every(a => a.patient_id !== null);
+    return allLinked ? "full" : "has_slots";
   };
 
   const openDay = (date: Date) => {
@@ -116,7 +115,25 @@ export default function Agenda() {
     setNewDialogOpen(true);
   };
 
-  // CPF auto-fill
+  // Create empty slot (no patient linked)
+  const createEmptySlot = async () => {
+    if (!selectedDate || !profile?.organization_id) return;
+    const { error } = await supabase.from("appointments").insert({
+      organization_id: profile.organization_id,
+      patient_name: "— Horário Vago —",
+      treatment_type: "Avaliação",
+      appointment_date: format(selectedDate, "yyyy-MM-dd"),
+      appointment_time: "08:00",
+      duration_minutes: 30,
+      created_by: profile.id,
+    });
+    if (!error) {
+      toast({ title: "Slot criado!" });
+      fetchAppointments();
+    }
+  };
+
+  // CPF auto-fill via useEffect
   const lookupCpf = useCallback(async (cpf: string) => {
     const clean = cpf.replace(/\D/g, "");
     if (clean.length !== 11 || !profile?.organization_id) return;
@@ -135,13 +152,18 @@ export default function Agenda() {
     }
   }, [profile?.organization_id, toast]);
 
+  // useEffect for CPF auto-fill
+  useEffect(() => {
+    const clean = newCpf.replace(/\D/g, "");
+    if (clean.length === 11 && !cpfLookedUp) {
+      lookupCpf(newCpf);
+    }
+  }, [newCpf, cpfLookedUp, lookupCpf]);
+
   const handleCpfChange = (val: string) => {
     const formatted = formatCPF(val);
     setNewCpf(formatted);
     setCpfLookedUp(false);
-    if (formatted.replace(/\D/g, "").length === 11) {
-      lookupCpf(formatted);
-    }
   };
 
   const handleSaveAppointment = async () => {
@@ -182,6 +204,12 @@ export default function Agenda() {
     }
   };
 
+  // Delete appointment
+  const handleDeleteAppt = async (id: string) => {
+    await supabase.from("appointments").delete().eq("id", id);
+    fetchAppointments();
+  };
+
   // Patient hover data
   const [hoverPatient, setHoverPatient] = useState<PatientLookup | null>(null);
   const [hoverApptId, setHoverApptId] = useState<string | null>(null);
@@ -198,223 +226,229 @@ export default function Agenda() {
   const listDays = daysInMonth.filter(d => getApptsForDate(d).length > 0);
 
   return (
-    <TooltipProvider>
-      <div className="space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-primary" /> Agenda
-          </h1>
-          <div className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-            <Switch checked={listView} onCheckedChange={setListView} className="scale-90" />
-            <List className="h-4 w-4 text-muted-foreground" />
-          </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+          <CalendarDays className="h-6 w-6 text-primary" /> Agenda
+        </h1>
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+          <Switch checked={listView} onCheckedChange={setListView} className="scale-90" />
+          <List className="h-4 w-4 text-muted-foreground" />
         </div>
+      </div>
 
-        {/* Month navigator */}
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(m => subMonths(m, 1))}><ChevronLeft className="h-5 w-5" /></Button>
-          <h2 className="text-lg font-display font-semibold capitalize">{format(currentMonth, "MMMM yyyy", { locale: ptBR })}</h2>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(m => addMonths(m, 1))}><ChevronRight className="h-5 w-5" /></Button>
-        </div>
+      {/* Month navigator */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(m => subMonths(m, 1))}><ChevronLeft className="h-5 w-5" /></Button>
+        <h2 className="text-base font-display font-semibold capitalize">{format(currentMonth, "MMMM yyyy", { locale: ptBR })}</h2>
+        <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(m => addMonths(m, 1))}><ChevronRight className="h-5 w-5" /></Button>
+      </div>
 
-        {!listView ? (
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-7 gap-1 mb-1">
-                {weekdays.map(d => (
-                  <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
-                ))}
+      {!listView ? (
+        <Card className="border-border/50 shadow-sm">
+          <CardContent className="p-2">
+            <div className="grid grid-cols-7">
+              {weekdays.map(d => (
+                <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e-${i}`} className="h-9" />)}
+              {daysInMonth.map(day => {
+                const status = getDayStatus(day);
+                const today = isToday(day);
+                return (
+                  <button
+                    key={day.toISOString()}
+                    onClick={() => openDay(day)}
+                    className={`h-9 rounded flex flex-col items-center justify-center gap-0.5 text-xs transition-all
+                      ${today ? "ring-1 ring-primary font-bold" : ""}
+                      bg-card hover:bg-muted/50`}
+                  >
+                    <span className={today ? "text-primary" : "text-foreground"}>{format(day, "d")}</span>
+                    {status === "has_slots" && <div className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--tooth-in-progress))]" />}
+                    {status === "full" && <div className="h-1.5 w-1.5 rounded-full bg-destructive" />}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-border/50 shadow-sm">
+          <CardContent className="p-4 space-y-4">
+            {listDays.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">Nenhum agendamento neste mês.</p>}
+            {listDays.map(day => (
+              <div key={day.toISOString()}>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 capitalize">
+                  {format(day, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                </p>
+                <div className="space-y-1.5">
+                  {getApptsForDate(day).map(appt => (
+                    <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-xs font-medium w-12">{appt.appointment_time?.slice(0, 5)}</span>
+                      {appt.patient_id ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="text-xs text-primary underline-offset-2 hover:underline"
+                              onMouseEnter={() => fetchHoverPatient(appt)}
+                              onClick={() => navigate(`/pacientes`)}
+                            >
+                              {appt.patient_name}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-56 p-3">
+                            {hoverPatient && hoverApptId === appt.id ? (
+                              <div className="space-y-1 text-xs">
+                                <p className="font-semibold">{hoverPatient.nome_completo}</p>
+                                {hoverPatient.telefone && <p className="text-muted-foreground">📞 {hoverPatient.telefone}</p>}
+                                <p className="text-muted-foreground">CPF: {formatCPF(hoverPatient.cpf)}</p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Carregando...</p>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">{appt.patient_name}</span>
+                      )}
+                      <Badge variant="secondary" className="ml-auto text-[10px]">{appt.treatment_type}</Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e-${i}`} className="aspect-square" />)}
-                {daysInMonth.map(day => {
-                  const status = getDayStatus(day);
-                  const today = isToday(day);
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => openDay(day)}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center gap-1 text-sm transition-all border
-                        ${today ? "border-primary font-bold" : "border-transparent"}
-                        bg-card hover:bg-muted/50`}
-                    >
-                      <span className={today ? "text-primary" : "text-foreground"}>{format(day, "d")}</span>
-                      {status === "has_slots" && <div className="h-2 w-2 rounded-full bg-[hsl(var(--tooth-in-progress))]" />}
-                      {status === "full" && <div className="h-2 w-2 rounded-full bg-destructive" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-4 space-y-4">
-              {listDays.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">Nenhum agendamento neste mês.</p>}
-              {listDays.map(day => (
-                <div key={day.toISOString()}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 capitalize">
-                    {format(day, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                  </p>
-                  <div className="space-y-1.5">
-                    {getApptsForDate(day).map(appt => (
-                      <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <span className="text-xs font-medium w-12">{appt.appointment_time?.slice(0, 5)}</span>
-                        {appt.patient_id ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                className="text-xs text-primary underline-offset-2 hover:underline"
-                                onMouseEnter={() => fetchHoverPatient(appt)}
-                                onClick={() => navigate(`/pacientes`)}
-                              >
-                                {appt.patient_name}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent className="w-52 p-3">
-                              {hoverPatient && hoverApptId === appt.id ? (
-                                <div className="space-y-1 text-xs">
-                                  <p className="font-semibold">{hoverPatient.nome_completo}</p>
-                                  {hoverPatient.telefone && <p className="text-muted-foreground">📞 {hoverPatient.telefone}</p>}
-                                  <p className="text-muted-foreground">CPF: {formatCPF(hoverPatient.cpf)}</p>
-                                </div>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">Carregando...</p>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-[hsl(var(--tooth-in-progress))]" /> Slots criados</span>
+        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-destructive" /> Todos ocupados</span>
+      </div>
+
+      {/* ========== DAY DETAIL DIALOG ========== */}
+      <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] p-0">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="font-display capitalize">
+              {selectedDate && format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </DialogTitle>
+            <DialogDescription>Slots de atendimento do dia.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[55vh] px-5 pb-5">
+            <div className="space-y-1.5">
+              {dayAppts.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">Nenhum slot criado.</p>
+              )}
+              {dayAppts.map(appt => (
+                <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm group">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium w-12 text-xs">{appt.appointment_time?.slice(0, 5)}</span>
+                  {appt.patient_id ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="text-xs text-primary underline-offset-2 hover:underline flex-1 text-left"
+                          onMouseEnter={() => fetchHoverPatient(appt)}
+                          onClick={() => navigate(`/pacientes`)}
+                        >
+                          {appt.patient_name}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-3">
+                        {hoverPatient && hoverApptId === appt.id ? (
+                          <div className="space-y-1 text-xs">
+                            <p className="font-semibold">{hoverPatient.nome_completo}</p>
+                            {hoverPatient.telefone && <p className="text-muted-foreground">📞 {hoverPatient.telefone}</p>}
+                            <p className="text-muted-foreground">CPF: {formatCPF(hoverPatient.cpf)}</p>
+                          </div>
                         ) : (
-                          <span className="text-xs">{appt.patient_name}</span>
+                          <p className="text-xs text-muted-foreground">Carregando...</p>
                         )}
-                        <Badge variant="secondary" className="ml-auto text-[10px]">{appt.treatment_type}</Badge>
-                      </div>
-                    ))}
-                  </div>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <span className="text-xs flex-1 text-left text-muted-foreground italic">{appt.patient_name}</span>
+                  )}
+                  <Badge variant="secondary" className="text-[10px]">{appt.treatment_type}</Badge>
+                  <button onClick={() => handleDeleteAppt(appt.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </button>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--tooth-in-progress))]" /> Horários marcados</span>
-          <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-destructive" /> Agenda lotada</span>
-        </div>
-
-        {/* ========== DAY DETAIL DIALOG ========== */}
-        <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
-          <DialogContent className="sm:max-w-md max-h-[80vh] p-0">
-            <DialogHeader className="px-5 pt-5 pb-3">
-              <DialogTitle className="font-display capitalize">
-                {selectedDate && format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </DialogTitle>
-              <DialogDescription>Horários agendados para o dia.</DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="max-h-[55vh] px-5 pb-5">
-              <div className="space-y-1.5">
-                {dayAppts.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">Nenhum agendamento.</p>
-                )}
-                {dayAppts.map(appt => (
-                  <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium w-12">{appt.appointment_time?.slice(0, 5)}</span>
-                    {appt.patient_id ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="text-xs text-primary underline-offset-2 hover:underline flex-1 text-left"
-                            onMouseEnter={() => fetchHoverPatient(appt)}
-                            onClick={() => navigate(`/pacientes`)}
-                          >
-                            {appt.patient_name}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent className="w-52 p-3">
-                          {hoverPatient && hoverApptId === appt.id ? (
-                            <div className="space-y-1 text-xs">
-                              <p className="font-semibold">{hoverPatient.nome_completo}</p>
-                              {hoverPatient.telefone && <p className="text-muted-foreground">📞 {hoverPatient.telefone}</p>}
-                              <p className="text-muted-foreground">CPF: {formatCPF(hoverPatient.cpf)}</p>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">Carregando...</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <span className="text-xs flex-1 text-left">{appt.patient_name}</span>
-                    )}
-                    <Badge variant="secondary" className="text-[10px]">{appt.treatment_type}</Badge>
-                  </div>
-                ))}
-              </div>
-              <Button variant="outline" size="sm" className="w-full mt-3 gap-2" onClick={openNewAppointment}>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={createEmptySlot}>
+                <Plus className="h-3.5 w-3.5" /> Slot Vago
+              </Button>
+              <Button variant="default" size="sm" className="flex-1 gap-2" onClick={openNewAppointment}>
                 <Plus className="h-3.5 w-3.5" /> Novo Agendamento
               </Button>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
-
-        {/* ========== NEW APPOINTMENT DIALOG ========== */}
-        <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="font-display">Novo Agendamento</DialogTitle>
-              <DialogDescription>
-                {selectedDate && format(selectedDate, "dd/MM/yyyy")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Início *</Label>
-                  <Input type="time" value={newTimeStart} onChange={e => setNewTimeStart(e.target.value)} className="h-8 text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Fim *</Label>
-                  <Input type="time" value={newTimeEnd} onChange={e => setNewTimeEnd(e.target.value)} className="h-8 text-xs" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">CPF (preenche automaticamente)</Label>
-                <Input
-                  placeholder="000.000.000-00"
-                  value={newCpf}
-                  onChange={e => handleCpfChange(e.target.value)}
-                  className="h-8 text-xs"
-                />
-                {cpfLookedUp && <p className="text-[10px] text-accent">✓ Paciente vinculado</p>}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Nome do Cliente *</Label>
-                <Input placeholder="Nome completo" value={newName} onChange={e => setNewName(e.target.value)} className="h-8 text-xs" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Telefone</Label>
-                <Input placeholder="(00) 00000-0000" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="h-8 text-xs" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Tipo de Tratamento *</Label>
-                <Select value={newTreatment} onValueChange={setNewTreatment}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                  <SelectContent>
-                    {TREATMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full" disabled={!newName || !newTreatment || saving} onClick={handleSaveAppointment}>
-                {saving ? "Salvando..." : "Agendar"}
-              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </TooltipProvider>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== NEW APPOINTMENT DIALOG ========== */}
+      <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Novo Agendamento</DialogTitle>
+            <DialogDescription>
+              {selectedDate && format(selectedDate, "dd/MM/yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[11px]">Início *</Label>
+                <Input type="time" value={newTimeStart} onChange={e => setNewTimeStart(e.target.value)} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Fim *</Label>
+                <Input type="time" value={newTimeEnd} onChange={e => setNewTimeEnd(e.target.value)} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">CPF (preenche automaticamente)</Label>
+              <Input
+                placeholder="000.000.000-00"
+                value={newCpf}
+                onChange={e => handleCpfChange(e.target.value)}
+                className="h-8 text-xs"
+              />
+              {cpfLookedUp && <p className="text-[10px] text-accent">✓ Paciente vinculado</p>}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Nome do Cliente *</Label>
+              <Input placeholder="Nome completo" value={newName} onChange={e => setNewName(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Telefone</Label>
+              <Input placeholder="(00) 00000-0000" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Tipo de Tratamento *</Label>
+              <Select value={newTreatment} onValueChange={setNewTreatment}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                <SelectContent>
+                  {TREATMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" disabled={!newName || !newTreatment || saving} onClick={handleSaveAppointment}>
+              {saving ? "Salvando..." : "Agendar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
