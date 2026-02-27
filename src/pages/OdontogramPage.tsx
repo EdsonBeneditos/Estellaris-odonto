@@ -7,13 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { formatCPF } from "@/lib/validators";
-import { Search, Save, SmilePlus, UserPlus, CheckCircle2, Download } from "lucide-react";
+import { Search, Save, SmilePlus, UserPlus, CheckCircle2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import type { Json } from "@/integrations/supabase/types";
 
 interface Patient {
@@ -36,9 +41,10 @@ export default function OdontogramPage() {
   const [cpfSearch, setCpfSearch] = useState("");
   const [searching, setSearching] = useState(false);
 
-  // Patient selector for loading
+  // Combobox patient search
   const [patientList, setPatientList] = useState<Patient[]>([]);
-  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [comboOpen, setComboOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const hasMarks = Object.keys(odontogramData).length > 0;
 
@@ -46,7 +52,6 @@ export default function OdontogramPage() {
   useEffect(() => {
     if (!profile?.organization_id) return;
     const fetchPatients = async () => {
-      setLoadingPatients(true);
       const { data } = await supabase
         .from("patients")
         .select("id, nome_completo, cpf")
@@ -54,7 +59,6 @@ export default function OdontogramPage() {
         .order("nome_completo")
         .limit(200);
       setPatientList((data as Patient[]) ?? []);
-      setLoadingPatients(false);
     };
     fetchPatients();
   }, [profile?.organization_id]);
@@ -83,6 +87,7 @@ export default function OdontogramPage() {
     if (p) {
       setPatient(p);
       loadOdontogram(p.id);
+      setComboOpen(false);
     }
   };
 
@@ -140,11 +145,17 @@ export default function OdontogramPage() {
     toast({ title: "Odontograma salvo com sucesso!" });
   }, [patient, profile, odontogramData, meta, toast]);
 
-  const handleNewBudget = () => {
+  const handleNewOdontogram = () => {
     setPatient(null);
     setOdontogramData({});
     setMeta(DEFAULT_META);
   };
+
+  // Filter patients for combobox
+  const filteredPatients = patientList.filter(p => {
+    const q = searchQuery.toLowerCase();
+    return p.nome_completo.toLowerCase().includes(q) || p.cpf.includes(q.replace(/\D/g, ""));
+  });
 
   return (
     <div className="space-y-5">
@@ -154,22 +165,31 @@ export default function OdontogramPage() {
           <SmilePlus className="h-6 w-6 text-accent" /> Odontograma
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Patient selector */}
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground whitespace-nowrap">Carregar Prontuário:</Label>
-            <Select value={patient?.id ?? ""} onValueChange={handleSelectPatient}>
-              <SelectTrigger className="h-8 w-52 text-xs">
-                <SelectValue placeholder="Selecionar paciente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {patientList.map(p => (
-                  <SelectItem key={p.id} value={p.id} className="text-xs">
-                    {p.nome_completo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Combobox patient search */}
+          <Popover open={comboOpen} onOpenChange={setComboOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-60 justify-start text-xs gap-2">
+                <Search className="h-3.5 w-3.5" />
+                {patient ? patient.nome_completo : "Buscar paciente..."}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Nome ou CPF..." value={searchQuery} onValueChange={setSearchQuery} className="text-xs" />
+                <CommandList>
+                  <CommandEmpty className="text-xs p-3 text-muted-foreground">Nenhum paciente encontrado.</CommandEmpty>
+                  <CommandGroup>
+                    {filteredPatients.map(p => (
+                      <CommandItem key={p.id} value={p.id} onSelect={handleSelectPatient} className="text-xs">
+                        <span className="truncate">{p.nome_completo}</span>
+                        <span className="ml-auto text-[10px] text-muted-foreground">{formatCPF(p.cpf)}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
 
           {patient && (
             <span className="text-sm text-muted-foreground">
@@ -186,8 +206,8 @@ export default function OdontogramPage() {
               <UserPlus className="h-4 w-4 mr-2" /> Vincular Paciente
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={handleNewBudget}>
-            Novo Orçamento
+          <Button variant="ghost" size="sm" onClick={handleNewOdontogram}>
+            Novo Odontograma
           </Button>
           <Button onClick={handleSave} disabled={saving || !hasMarks} size="sm">
             <Save className="h-4 w-4 mr-2" /> {saving ? "Salvando..." : "Salvar"}

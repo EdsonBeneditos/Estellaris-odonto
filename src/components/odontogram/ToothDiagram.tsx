@@ -14,24 +14,24 @@ interface ToothDiagramProps {
 
 export function ToothDiagram({ tooth, x, y, size = 28, isUpper, selected, onToothClick, onSurfaceClick }: ToothDiagramProps) {
   const s = size;
-  const crownH = s * 0.9;
-  const surfaceBlockSize = s * 0.85;
+  const toothH = s; // crown + root combined in AnatomicalTooth
+  const surfaceBlockSize = s * 0.75;
   const gapBetween = 2;
   const numberFontSize = 7;
-  const numberH = 10;
+  const numberH = 9;
 
   let numberY: number, anatomyY: number, surfaceY: number;
   if (isUpper) {
     numberY = y;
     anatomyY = y + numberH;
-    surfaceY = anatomyY + crownH + gapBetween;
+    surfaceY = anatomyY + toothH + gapBetween;
   } else {
     surfaceY = y;
     anatomyY = y + surfaceBlockSize + gapBetween;
-    numberY = anatomyY + crownH;
+    numberY = anatomyY + toothH;
   }
 
-  // Surface grid geometry - centered under/over crown
+  // Surface grid geometry
   const surfaceOffset = (s - surfaceBlockSize) / 2;
   const inner = surfaceBlockSize * 0.28;
   const outerPad = (surfaceBlockSize - inner * 2) / 2;
@@ -65,7 +65,7 @@ export function ToothDiagram({ tooth, x, y, size = 28, isUpper, selected, onToot
         {tooth.number}
       </text>
 
-      {/* Crown silhouette (no roots) */}
+      {/* Crown + Root silhouette */}
       <AnatomicalTooth
         toothNumber={tooth.number}
         x={x}
@@ -99,10 +99,10 @@ export function ToothDiagram({ tooth, x, y, size = 28, isUpper, selected, onToot
         </polygon>
       ))}
 
-      {/* Click area over crown */}
+      {/* Click area over crown+root */}
       <rect
         x={x} y={anatomyY}
-        width={s} height={crownH}
+        width={s} height={toothH}
         fill="transparent"
         onClick={() => onToothClick(tooth.number)}
       />
