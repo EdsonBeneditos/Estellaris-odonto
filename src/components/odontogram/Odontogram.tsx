@@ -31,7 +31,6 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   const [viewMode, setViewMode] = useState("dentes");
   const [periodo, setPeriodo] = useState("atual");
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogToothNum, setDialogToothNum] = useState<number>(0);
   const [dialogSurface, setDialogSurface] = useState<SurfaceName | null>(null);
@@ -46,21 +45,24 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   const teethPerRow = upperRow.length;
   const allTeeth = [...upperRow, ...lowerRow];
 
-  const toothSize = 40;
-  const gap = 5;
-  const centerGap = 20;
+  // Reduced size: 28px per tooth (was 40)
+  const toothSize = deciduous ? 24 : 28;
+  const gap = 3;
+  const centerGap = 14;
   const halfCount = teethPerRow / 2;
   const rowWidth = teethPerRow * toothSize + (teethPerRow - 1) * gap + centerGap;
-  const svgWidth = rowWidth + 40;
-  const toothBlockH = 13 + toothSize * 1.4 + 3 + toothSize + 12;
-  const archGap = 20;
-  const svgHeight = 2 * toothBlockH + archGap + 10;
+  const svgWidth = rowWidth + 30;
+  const crownH = toothSize * 0.9;
+  const surfaceH = toothSize * 0.85;
+  const toothBlockH = 10 + crownH + 2 + surfaceH + 8;
+  const archGap = 14;
+  const svgHeight = 2 * toothBlockH + archGap + 6;
 
   const getTooth = (num: number) => data[num] ?? createEmptyTooth(num);
 
   const getToothX = (index: number) => {
     const extra = index >= halfCount ? centerGap : 0;
-    return 20 + index * (toothSize + gap) + extra;
+    return 15 + index * (toothSize + gap) + extra;
   };
 
   const handleSurfaceClick = (num: number, surface: SurfaceName) => {
@@ -141,31 +143,28 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
     setDialogOpen(false);
   };
 
-  const upperY = 8;
+  const upperY = 5;
   const lowerY = upperY + toothBlockH + archGap;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-9">
-          <TabsTrigger value="odontograma" className="text-xs">Odontograma</TabsTrigger>
-          <TabsTrigger value="tecidos" className="text-xs">Tecidos moles e duros</TabsTrigger>
-          <TabsTrigger value="periodontia" className="text-xs">Periodontia</TabsTrigger>
+        <TabsList className="h-8">
+          <TabsTrigger value="odontograma" className="text-[11px]">Odontograma</TabsTrigger>
+          <TabsTrigger value="tecidos" className="text-[11px]">Tecidos moles e duros</TabsTrigger>
+          <TabsTrigger value="periodontia" className="text-[11px]">Periodontia</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {activeTab === "odontograma" && (
         <>
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-border bg-card p-3">
-            {/* Período */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border bg-card px-3 py-2">
             <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Período</Label>
+              <Label className="text-[11px] text-muted-foreground">Período</Label>
               <Select value={periodo} onValueChange={setPeriodo}>
-                <SelectTrigger className="h-8 w-28 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="h-7 w-24 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="atual">Atual</SelectItem>
                   <SelectItem value="historico">Histórico</SelectItem>
@@ -173,93 +172,69 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
               </Select>
             </div>
 
-            {/* View mode */}
             <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Visualizar por:</Label>
-              <RadioGroup value={viewMode} onValueChange={setViewMode} className="flex gap-3">
+              <Label className="text-[11px] text-muted-foreground">Visualizar:</Label>
+              <RadioGroup value={viewMode} onValueChange={setViewMode} className="flex gap-2">
                 {["dentes", "arcadas", "outros"].map(v => (
                   <div key={v} className="flex items-center gap-1">
-                    <RadioGroupItem value={v} id={`view-${v}`} className="h-3.5 w-3.5" />
-                    <Label htmlFor={`view-${v}`} className="text-xs capitalize">{v}</Label>
+                    <RadioGroupItem value={v} id={`view-${v}`} className="h-3 w-3" />
+                    <Label htmlFor={`view-${v}`} className="text-[11px] capitalize">{v}</Label>
                   </div>
                 ))}
               </RadioGroup>
             </div>
 
-            {/* Deciduous toggle */}
-            <div className="flex items-center gap-2">
-              <Switch id="deciduous" checked={deciduous} onCheckedChange={setDeciduous} className="scale-90" />
-              <Label htmlFor="deciduous" className="text-xs">Decíduos</Label>
+            <div className="flex items-center gap-1.5">
+              <Switch id="deciduous" checked={deciduous} onCheckedChange={setDeciduous} className="scale-75" />
+              <Label htmlFor="deciduous" className="text-[11px]">Decíduos</Label>
             </div>
 
-            {/* Appliance/contention */}
-            <div className="flex items-center gap-2">
-              <Switch
-                id="aparelho"
-                checked={meta.possui_aparelho}
-                onCheckedChange={v => onMetaChange({ ...meta, possui_aparelho: v })}
-                className="scale-90"
-              />
-              <Label htmlFor="aparelho" className="text-xs">Aparelho</Label>
+            <div className="flex items-center gap-1.5">
+              <Switch id="aparelho" checked={meta.possui_aparelho} onCheckedChange={v => onMetaChange({ ...meta, possui_aparelho: v })} className="scale-75" />
+              <Label htmlFor="aparelho" className="text-[11px]">Aparelho</Label>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="contencao"
-                checked={meta.possui_contencao}
-                onCheckedChange={v => onMetaChange({ ...meta, possui_contencao: v })}
-                className="scale-90"
-              />
-              <Label htmlFor="contencao" className="text-xs">Contenção</Label>
+            <div className="flex items-center gap-1.5">
+              <Switch id="contencao" checked={meta.possui_contencao} onCheckedChange={v => onMetaChange({ ...meta, possui_contencao: v })} className="scale-75" />
+              <Label htmlFor="contencao" className="text-[11px]">Contenção</Label>
             </div>
 
-            {/* Prosthesis */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Prótese:</span>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="protese-sup"
-                  checked={meta.protese_total_superior}
-                  onCheckedChange={(v) => onMetaChange({ ...meta, protese_total_superior: !!v })}
-                  className="h-3.5 w-3.5"
-                />
-                <Label htmlFor="protese-sup" className="text-xs">Total sup.</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Prótese:</span>
+              <div className="flex items-center gap-1">
+                <Checkbox id="protese-sup" checked={meta.protese_total_superior} onCheckedChange={(v) => onMetaChange({ ...meta, protese_total_superior: !!v })} className="h-3 w-3" />
+                <Label htmlFor="protese-sup" className="text-[11px]">Sup.</Label>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="protese-inf"
-                  checked={meta.protese_total_inferior}
-                  onCheckedChange={(v) => onMetaChange({ ...meta, protese_total_inferior: !!v })}
-                  className="h-3.5 w-3.5"
-                />
-                <Label htmlFor="protese-inf" className="text-xs">Total inf.</Label>
+              <div className="flex items-center gap-1">
+                <Checkbox id="protese-inf" checked={meta.protese_total_inferior} onCheckedChange={(v) => onMetaChange({ ...meta, protese_total_inferior: !!v })} className="h-3 w-3" />
+                <Label htmlFor="protese-inf" className="text-[11px]">Inf.</Label>
               </div>
             </div>
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             {(["diagnosis", "in_progress", "completed"] as const).map(p => (
-              <div key={p} className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: getPhaseColor(p) }} />
-                <span className="text-[11px] text-muted-foreground">{PHASE_LABELS[p]}</span>
+              <div key={p} className="flex items-center gap-1">
+                <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getPhaseColor(p) }} />
+                <span className="text-[10px] text-muted-foreground">{PHASE_LABELS[p]}</span>
               </div>
             ))}
           </div>
 
           {/* SVG Odontogram */}
-          <div className="overflow-x-auto rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card p-3 shadow-sm">
             <svg
               viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-              className="w-full max-w-5xl mx-auto"
-              style={{ minWidth: 640 }}
+              className="w-full max-w-3xl mx-auto"
+              style={{ minWidth: 480 }}
             >
               {/* Midline */}
               <line
-                x1={svgWidth / 2} y1={4}
-                x2={svgWidth / 2} y2={svgHeight - 4}
+                x1={svgWidth / 2} y1={2}
+                x2={svgWidth / 2} y2={svgHeight - 2}
                 stroke="hsl(var(--border))"
-                strokeWidth={1}
-                strokeDasharray="4 4"
+                strokeWidth={0.5}
+                strokeDasharray="3 3"
               />
 
               {/* Upper arch */}
@@ -306,7 +281,6 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
         </div>
       )}
 
-      {/* Clinical dialog */}
       {dialogToothNum > 0 && (
         <ClinicalDialog
           open={dialogOpen}

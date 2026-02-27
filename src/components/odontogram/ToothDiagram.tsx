@@ -12,39 +12,40 @@ interface ToothDiagramProps {
   onSurfaceClick: (toothNum: number, surface: SurfaceName) => void;
 }
 
-export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToothClick, onSurfaceClick }: ToothDiagramProps) {
+export function ToothDiagram({ tooth, x, y, size = 28, isUpper, selected, onToothClick, onSurfaceClick }: ToothDiagramProps) {
   const s = size;
-  const anatomicalH = s * 1.4;
-  const surfaceBlockSize = s;
-  const gapBetween = 3;
-  const numberFontSize = 9;
-  const numberH = 13;
+  const crownH = s * 0.9;
+  const surfaceBlockSize = s * 0.85;
+  const gapBetween = 2;
+  const numberFontSize = 7;
+  const numberH = 10;
 
   let numberY: number, anatomyY: number, surfaceY: number;
   if (isUpper) {
     numberY = y;
     anatomyY = y + numberH;
-    surfaceY = anatomyY + anatomicalH + gapBetween;
+    surfaceY = anatomyY + crownH + gapBetween;
   } else {
     surfaceY = y;
     anatomyY = y + surfaceBlockSize + gapBetween;
-    numberY = anatomyY + anatomicalH;
+    numberY = anatomyY + crownH;
   }
 
-  // Surface grid geometry
+  // Surface grid geometry - centered under/over crown
+  const surfaceOffset = (s - surfaceBlockSize) / 2;
   const inner = surfaceBlockSize * 0.28;
   const outerPad = (surfaceBlockSize - inner * 2) / 2;
-  const sx = x;
+  const sx = x + surfaceOffset;
   const sy = surfaceY;
   const ix = sx + outerPad;
   const iy = sy + outerPad;
   const iw = inner * 2;
 
   const surfaces: { name: SurfaceName; points: string }[] = [
-    { name: "vestibular", points: `${sx},${sy} ${sx + s},${sy} ${ix + iw},${iy} ${ix},${iy}` },
-    { name: "lingual", points: `${ix},${iy + iw} ${ix + iw},${iy + iw} ${sx + s},${sy + s} ${sx},${sy + s}` },
-    { name: "mesial", points: `${sx},${sy} ${ix},${iy} ${ix},${iy + iw} ${sx},${sy + s}` },
-    { name: "distal", points: `${ix + iw},${iy} ${sx + s},${sy} ${sx + s},${sy + s} ${ix + iw},${iy + iw}` },
+    { name: "vestibular", points: `${sx},${sy} ${sx + surfaceBlockSize},${sy} ${ix + iw},${iy} ${ix},${iy}` },
+    { name: "lingual", points: `${ix},${iy + iw} ${ix + iw},${iy + iw} ${sx + surfaceBlockSize},${sy + surfaceBlockSize} ${sx},${sy + surfaceBlockSize}` },
+    { name: "mesial", points: `${sx},${sy} ${ix},${iy} ${ix},${iy + iw} ${sx},${sy + surfaceBlockSize}` },
+    { name: "distal", points: `${ix + iw},${iy} ${sx + surfaceBlockSize},${sy} ${sx + surfaceBlockSize},${sy + surfaceBlockSize} ${ix + iw},${iy + iw}` },
     { name: "oclusal", points: `${ix},${iy} ${ix + iw},${iy} ${ix + iw},${iy + iw} ${ix},${iy + iw}` },
   ];
 
@@ -64,7 +65,7 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
         {tooth.number}
       </text>
 
-      {/* Anatomical silhouette */}
+      {/* Crown silhouette (no roots) */}
       <AnatomicalTooth
         toothNumber={tooth.number}
         x={x}
@@ -78,10 +79,10 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
       {/* Selection ring */}
       {selected && (
         <rect
-          x={sx - 2} y={sy - 2}
-          width={s + 4} height={s + 4}
-          rx={3} fill="none"
-          stroke="hsl(var(--ring))" strokeWidth={2} strokeDasharray="4 2"
+          x={sx - 1} y={sy - 1}
+          width={surfaceBlockSize + 2} height={surfaceBlockSize + 2}
+          rx={2} fill="none"
+          stroke="hsl(var(--ring))" strokeWidth={1.5} strokeDasharray="3 2"
         />
       )}
 
@@ -98,27 +99,13 @@ export function ToothDiagram({ tooth, x, y, size = 40, isUpper, selected, onToot
         </polygon>
       ))}
 
-      {/* Click area over anatomy */}
+      {/* Click area over crown */}
       <rect
         x={x} y={anatomyY}
-        width={s} height={anatomicalH}
+        width={s} height={crownH}
         fill="transparent"
         onClick={() => onToothClick(tooth.number)}
       />
-
-      {/* Condition abbreviations below surfaces */}
-      {hasConditions && (
-        <text
-          x={x + s / 2}
-          y={isUpper ? surfaceY + surfaceBlockSize + 10 : surfaceY - 4}
-          textAnchor="middle"
-          style={{ fontSize: 7, fontWeight: 500 }}
-          fill="hsl(var(--muted-foreground))"
-          className="select-none"
-        >
-          {tooth.conditions.length > 2 ? `${tooth.conditions.length} cond.` : ""}
-        </text>
-      )}
     </g>
   );
 }
