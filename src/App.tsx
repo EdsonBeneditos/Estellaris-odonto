@@ -13,6 +13,8 @@ import OdontogramPage from "./pages/OdontogramPage";
 import Agenda from "./pages/Agenda";
 import Financeiro from "./pages/Financeiro";
 import Configuracoes from "./pages/Configuracoes";
+import Receituario from "./pages/Receituario";
+import Atestado from "./pages/Atestado";
 import SystemAdmin from "./pages/SystemAdmin";
 import NotFound from "./pages/NotFound";
 
@@ -47,6 +49,8 @@ const App = () => (
             <Route path="/prontuario" element={<ProtectedRoute><DigitalRecord /></ProtectedRoute>} />
             <Route path="/odontograma" element={<ProtectedRoute><OdontogramPage /></ProtectedRoute>} />
             <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+            <Route path="/receituario" element={<ProtectedRoute><Receituario /></ProtectedRoute>} />
+            <Route path="/atestado" element={<ProtectedRoute><Atestado /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><SystemAdmin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

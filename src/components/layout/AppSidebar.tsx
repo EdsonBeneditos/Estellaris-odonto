@@ -11,6 +11,8 @@ import {
   Sun,
   Activity,
   ShieldCheck,
+  FileText,
+  Award,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +37,8 @@ const navItems = [
   { title: "Pacientes", url: "/pacientes", icon: Users },
   { title: "Prontuário", url: "/prontuario", icon: FileHeart },
   { title: "Odontograma", url: "/odontograma", icon: SmilePlus },
+  { title: "Receituário", url: "/receituario", icon: FileText },
+  { title: "Atestado", url: "/atestado", icon: Award },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ];
@@ -53,7 +57,7 @@ export function AppSidebar() {
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <p className="truncate text-sm font-display font-bold text-sidebar-primary-foreground">Nexus Health</p>
+            <p className="truncate text-sm font-display font-bold text-sidebar-primary-foreground">Nexus Smile Studio</p>
             <p className="truncate text-xs text-sidebar-foreground/60">{organization?.nome_clinica ?? "Clínica"}</p>
           </div>
         )}
@@ -80,7 +84,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {/* Super Admin - hidden tab */}
               {isSuperAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Admin Sistema">

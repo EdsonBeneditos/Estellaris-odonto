@@ -36,6 +36,9 @@ export function ClinicalDialog({ open, tooth, surfaceName, onApply, onClose, all
   const isCompleted = tooth.phase === "completed";
   const hasEvolution = tooth.evolution.length > 0;
 
+  // Sort replication teeth numerically
+  const sortedTeeth = [...allToothNumbers].filter(n => n !== tooth.number).sort((a, b) => a - b);
+
   const handleApply = () => {
     if (!selectedCondition) return;
     onApply(selectedCondition, selectedPhase, replicateMode ? replicateTeeth : []);
@@ -134,7 +137,7 @@ export function ClinicalDialog({ open, tooth, surfaceName, onApply, onClose, all
 
               <Separator />
 
-              {/* Replicate section */}
+              {/* Replicate section with sorted teeth */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Switch id="replicate-dialog" checked={replicateMode} onCheckedChange={setReplicateMode} />
@@ -145,7 +148,7 @@ export function ClinicalDialog({ open, tooth, surfaceName, onApply, onClose, all
                 </div>
                 {replicateMode && (
                   <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                    {allToothNumbers.filter(n => n !== tooth.number).map(num => (
+                    {sortedTeeth.map(num => (
                       <button
                         key={num}
                         onClick={() => toggleReplicateTooth(num)}
@@ -162,7 +165,6 @@ export function ClinicalDialog({ open, tooth, surfaceName, onApply, onClose, all
                 )}
               </div>
 
-              {/* Apply button */}
               <Button
                 className="w-full"
                 disabled={!selectedCondition}
