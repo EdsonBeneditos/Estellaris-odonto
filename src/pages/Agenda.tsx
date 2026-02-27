@@ -67,6 +67,7 @@ export default function Agenda() {
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [cpfLookedUp, setCpfLookedUp] = useState(false);
+  const [fillingSlotId, setFillingSlotId] = useState<string | null>(null);
 
   // Inline time editing state
   const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
@@ -109,14 +110,15 @@ export default function Agenda() {
     setDayDialogOpen(true);
   };
 
-  const openNewAppointment = () => {
-    setNewTimeStart("08:00");
-    setNewTimeEnd("08:30");
+  const openNewAppointment = (prefillTime?: string, slotId?: string) => {
+    setNewTimeStart(prefillTime ?? "08:00");
+    setNewTimeEnd(prefillTime ? (() => { const [h,m] = prefillTime.split(":").map(Number); const e = h*60+m+30; return `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`; })() : "08:30");
     setNewName("");
     setNewTreatment("");
     setNewCpf("");
     setNewPhone("");
     setCpfLookedUp(false);
+    setFillingSlotId(slotId ?? null);
     setNewDialogOpen(true);
   };
 
@@ -198,24 +200,47 @@ export default function Agenda() {
         .limit(1);
       if (patients?.length) patientId = patients[0].id;
     }
-    const { error } = await supabase.from("appointments").insert({
-      organization_id: profile.organization_id,
-      patient_name: newName,
-      treatment_type: newTreatment,
-      appointment_date: format(selectedDate, "yyyy-MM-dd"),
-      appointment_time: newTimeStart,
-      duration_minutes: calcDuration(newTimeStart, newTimeEnd),
-      cpf: cpfClean || null,
-      patient_id: patientId,
-      created_by: profile.id,
-    });
-    setSaving(false);
-    if (error) {
-      toast({ title: "Erro ao agendar", description: error.message, variant: "destructive" });
+
+    if (fillingSlotId) {
+      // Update existing vacant slot instead of creating duplicate
+      const { error } = await supabase.from("appointments").update({
+        patient_name: newName,
+        treatment_type: newTreatment,
+        appointment_time: newTimeStart,
+        duration_minutes: calcDuration(newTimeStart, newTimeEnd),
+        cpf: cpfClean || null,
+        patient_id: patientId,
+        status: "scheduled",
+      }).eq("id", fillingSlotId);
+      setSaving(false);
+      if (error) {
+        toast({ title: "Erro ao agendar", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Paciente vinculado ao slot!" });
+        setNewDialogOpen(false);
+        setFillingSlotId(null);
+        fetchAppointments();
+      }
     } else {
-      toast({ title: "Consulta agendada!" });
-      setNewDialogOpen(false);
-      fetchAppointments();
+      const { error } = await supabase.from("appointments").insert({
+        organization_id: profile.organization_id,
+        patient_name: newName,
+        treatment_type: newTreatment,
+        appointment_date: format(selectedDate, "yyyy-MM-dd"),
+        appointment_time: newTimeStart,
+        duration_minutes: calcDuration(newTimeStart, newTimeEnd),
+        cpf: cpfClean || null,
+        patient_id: patientId,
+        created_by: profile.id,
+      });
+      setSaving(false);
+      if (error) {
+        toast({ title: "Erro ao agendar", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Consulta agendada!" });
+        setNewDialogOpen(false);
+        fetchAppointments();
+      }
     }
   };
 
@@ -366,7 +391,13 @@ export default function Agenda() {
                       <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       {renderTimeCell(appt)}
                       {appt.patient_id ? renderPatientPopover(appt) : (
-                        <span className="text-xs text-muted-foreground italic flex-1">{appt.patient_name}</span>
+                        <button
+                          className="text-xs text-muted-foreground italic flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+                          onClick={() => openNewAppointment(appt.appointment_time?.slice(0, 5), appt.id)}
+                          title="Clique para vincular paciente"
+                        >
+                          {appt.patient_name}
+                        </button>
                       )}
                       <Badge variant="secondary" className="ml-auto text-[10px]">{appt.treatment_type}</Badge>
                       <button onClick={() => handleDeleteAppt(appt.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -406,7 +437,13 @@ export default function Agenda() {
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   {renderTimeCell(appt)}
                   {appt.patient_id ? renderPatientPopover(appt) : (
-                    <span className="text-xs flex-1 text-left text-muted-foreground italic">{appt.patient_name}</span>
+                    <button
+                      className="text-xs flex-1 text-left text-muted-foreground italic hover:text-primary transition-colors cursor-pointer"
+                      onClick={() => openNewAppointment(appt.appointment_time?.slice(0, 5), appt.id)}
+                      title="Clique para vincular paciente"
+                    >
+                      {appt.patient_name}
+                    </button>
                   )}
                   <Badge variant="secondary" className="text-[10px]">{appt.treatment_type}</Badge>
                   <button onClick={() => handleDeleteAppt(appt.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -419,7 +456,7 @@ export default function Agenda() {
               <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={createEmptySlot}>
                 <Plus className="h-3.5 w-3.5" /> Slot Vago
               </Button>
-              <Button variant="default" size="sm" className="flex-1 gap-2" onClick={openNewAppointment}>
+              <Button variant="default" size="sm" className="flex-1 gap-2" onClick={() => openNewAppointment()}>
                 <Plus className="h-3.5 w-3.5" /> Novo Agendamento
               </Button>
             </div>
