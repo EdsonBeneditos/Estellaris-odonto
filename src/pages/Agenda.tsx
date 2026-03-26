@@ -17,7 +17,7 @@ import { formatCPF } from "@/lib/validators";
 import { useNavigate } from "react-router-dom";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths,
-  isSameDay, isToday, parseISO,
+  isSameDay, isToday, parseISO, isBefore, startOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -57,6 +57,7 @@ export default function Agenda() {
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dayDialogOpen, setDayDialogOpen] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newTimeStart, setNewTimeStart] = useState("08:00");
@@ -69,9 +70,12 @@ export default function Agenda() {
   const [cpfLookedUp, setCpfLookedUp] = useState(false);
   const [fillingSlotId, setFillingSlotId] = useState<string | null>(null);
 
-  // Inline time editing state
   const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
   const [editingTimeValue, setEditingTimeValue] = useState("");
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+
+  const isPastDate = (date: Date) => isBefore(startOfDay(date), today);
 
   const fetchAppointments = async () => {
     if (!profile?.organization_id) return;
@@ -110,6 +114,10 @@ export default function Agenda() {
     setDayDialogOpen(true);
   };
 
+  const openHistory = () => {
+    setHistoryDialogOpen(true);
+  };
+
   const openNewAppointment = (prefillTime?: string, slotId?: string) => {
     setNewTimeStart(prefillTime ?? "08:00");
     setNewTimeEnd(prefillTime ? (() => { const [h,m] = prefillTime.split(":").map(Number); const e = h*60+m+30; return `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`; })() : "08:30");
@@ -124,6 +132,10 @@ export default function Agenda() {
 
   const createEmptySlot = async () => {
     if (!selectedDate || !profile?.organization_id) return;
+    if (isPastDate(selectedDate)) {
+      toast({ title: "Não é possível criar slots em datas passadas", variant: "destructive" });
+      return;
+    }
     const { error } = await supabase.from("appointments").insert({
       organization_id: profile.organization_id,
       patient_name: "— Horário Vago —",
@@ -139,7 +151,6 @@ export default function Agenda() {
     }
   };
 
-  // Editable time: save on blur
   const handleTimeSave = async (id: string) => {
     if (!editingTimeValue) { setEditingTimeId(null); return; }
     const { error } = await supabase
@@ -188,6 +199,10 @@ export default function Agenda() {
 
   const handleSaveAppointment = async () => {
     if (!newName || !newTreatment || !selectedDate || !profile?.organization_id) return;
+    if (isPastDate(selectedDate)) {
+      toast({ title: "Não é possível agendar em datas passadas", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     let patientId: string | null = null;
     const cpfClean = newCpf.replace(/\D/g, "");
@@ -202,7 +217,6 @@ export default function Agenda() {
     }
 
     if (fillingSlotId) {
-      // Update existing vacant slot instead of creating duplicate
       const { error } = await supabase.from("appointments").update({
         patient_name: newName,
         treatment_type: newTreatment,
@@ -249,7 +263,6 @@ export default function Agenda() {
     fetchAppointments();
   };
 
-  // Hover patient popover
   const [hoverPatient, setHoverPatient] = useState<PatientLookup | null>(null);
   const [hoverApptId, setHoverApptId] = useState<string | null>(null);
 
@@ -263,10 +276,9 @@ export default function Agenda() {
   const dayAppts = selectedDate ? getApptsForDate(selectedDate) : [];
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const listDays = daysInMonth.filter(d => getApptsForDate(d).length > 0);
-
-  // Compute dynamic row height so grid fits without scrolling
-  // Approximate: available height ~calc(100vh - 220px), divide by rows + 1 (header)
   const rowHeightClass = totalRows <= 5 ? "h-[calc((100vh-260px)/6)]" : "h-[calc((100vh-260px)/7)]";
+
+  const selectedDateIsPast = selectedDate ? isPastDate(selectedDate) : false;
 
   const renderPatientPopover = (appt: Appointment) => (
     <Popover>
@@ -332,10 +344,18 @@ export default function Agenda() {
         <h1 className="text-2xl font-display font-bold flex items-center gap-2">
           <CalendarDays className="h-6 w-6 text-primary" /> Agenda
         </h1>
-        <div className="flex items-center gap-2">
-          <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-          <Switch checked={listView} onCheckedChange={setListView} className="scale-90" />
-          <List className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openHistory}
+            className="text-xs text-primary hover:underline underline-offset-2 font-medium"
+          >
+            Lista de pacientes marcados
+          </button>
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+            <Switch checked={listView} onCheckedChange={setListView} className="scale-90" />
+            <List className="h-4 w-4 text-muted-foreground" />
+          </div>
         </div>
       </div>
 
@@ -358,16 +378,18 @@ export default function Agenda() {
               {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e-${i}`} className={rowHeightClass} />)}
               {daysInMonth.map(day => {
                 const status = getDayStatus(day);
-                const today = isToday(day);
+                const todayFlag = isToday(day);
+                const past = isPastDate(day);
                 return (
                   <button
                     key={day.toISOString()}
                     onClick={() => openDay(day)}
                     className={`${rowHeightClass} aspect-square rounded flex flex-col items-center justify-center gap-0.5 text-xs transition-all
-                      ${today ? "ring-1 ring-primary font-bold" : ""}
+                      ${todayFlag ? "ring-1 ring-primary font-bold" : ""}
+                      ${past ? "opacity-50" : ""}
                       bg-card hover:bg-muted/50`}
                   >
-                    <span className={today ? "text-primary" : "text-foreground"}>{format(day, "d")}</span>
+                    <span className={todayFlag ? "text-primary" : "text-foreground"}>{format(day, "d")}</span>
                     {status === "has_slots" && <div className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--tooth-in-progress))]" />}
                     {status === "full" && <div className="h-1.5 w-1.5 rounded-full bg-destructive" />}
                   </button>
@@ -414,9 +436,43 @@ export default function Agenda() {
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-[hsl(var(--tooth-in-progress))]" /> Slots criados</span>
-        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-destructive" /> Todos ocupados</span>
+        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-[hsl(var(--tooth-in-progress))]" /> Dia e horário disponível / Horário agendado</span>
+        <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-destructive" /> Horários ocupados</span>
       </div>
+
+      {/* ========== HISTORY / PATIENT LIST DIALOG ========== */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] p-0">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="font-display">Lista de Pacientes Marcados</DialogTitle>
+            <DialogDescription>Consultas do mês — inclui histórico de datas passadas.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] px-5 pb-5">
+            <div className="space-y-4">
+              {daysInMonth.filter(d => getApptsForDate(d).some(a => a.patient_id)).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">Nenhum paciente marcado neste mês.</p>
+              )}
+              {daysInMonth.filter(d => getApptsForDate(d).some(a => a.patient_id)).map(day => (
+                <div key={day.toISOString()}>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 capitalize">
+                    {format(day, "EEEE, dd/MM", { locale: ptBR })}
+                    {isPastDate(day) && <span className="ml-1 text-[10px] text-muted-foreground/60">(passado)</span>}
+                  </p>
+                  <div className="space-y-1">
+                    {getApptsForDate(day).filter(a => a.patient_id).map(appt => (
+                      <div key={appt.id} className="flex items-center gap-3 rounded border border-border px-3 py-1.5 text-xs">
+                        <span className="font-medium w-12">{appt.appointment_time?.slice(0, 5)}</span>
+                        <span className="flex-1 truncate">{appt.patient_name}</span>
+                        <Badge variant="secondary" className="text-[10px]">{appt.treatment_type}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       {/* ========== DAY DETAIL DIALOG ========== */}
       <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
@@ -453,10 +509,24 @@ export default function Agenda() {
               ))}
             </div>
             <div className="flex gap-2 mt-3">
-              <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={createEmptySlot}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-2"
+                onClick={createEmptySlot}
+                disabled={selectedDateIsPast}
+                title={selectedDateIsPast ? "Não é possível criar slots em datas passadas" : undefined}
+              >
                 <Plus className="h-3.5 w-3.5" /> Slot Vago
               </Button>
-              <Button variant="default" size="sm" className="flex-1 gap-2" onClick={() => openNewAppointment()}>
+              <Button
+                variant="default"
+                size="sm"
+                className="flex-1 gap-2"
+                onClick={() => openNewAppointment()}
+                disabled={selectedDateIsPast}
+                title={selectedDateIsPast ? "Não é possível agendar em datas passadas" : undefined}
+              >
                 <Plus className="h-3.5 w-3.5" /> Novo Agendamento
               </Button>
             </div>

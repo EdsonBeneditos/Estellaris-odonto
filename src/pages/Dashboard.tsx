@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Users, CalendarDays, FileHeart, TrendingUp, AlertTriangle, X } from "lucide-react";
-import { format, addMonths, isBefore } from "date-fns";
+import { format, addMonths, isBefore, subHours } from "date-fns";
 
 export default function Dashboard() {
   const { profile, organization } = useAuth();
   const [consultasHoje, setConsultasHoje] = useState<number>(0);
+  const [prontuariosAtualizados, setProntuariosAtualizados] = useState<number>(0);
   const [croAlert, setCroAlert] = useState(false);
   const [croAlertDismissed, setCroAlertDismissed] = useState(false);
 
@@ -26,6 +27,21 @@ export default function Dashboard() {
       setConsultasHoje(count ?? 0);
     };
     fetchCount();
+  }, [profile?.organization_id]);
+
+  // Prontuários updated in last 24h
+  useEffect(() => {
+    if (!profile?.organization_id) return;
+    const since = subHours(new Date(), 24).toISOString();
+    const fetchUpdated = async () => {
+      const { count } = await supabase
+        .from("medical_records")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", profile.organization_id)
+        .gte("updated_at", since);
+      setProntuariosAtualizados(count ?? 0);
+    };
+    fetchUpdated();
   }, [profile?.organization_id]);
 
   // CRO expiry alert
@@ -51,13 +67,12 @@ export default function Dashboard() {
   const stats = [
     { label: "Pacientes", value: "—", icon: Users, color: "text-accent" },
     { label: "Consultas Hoje", value: String(consultasHoje), icon: CalendarDays, color: "text-primary" },
-    { label: "Prontuários", value: "—", icon: FileHeart, color: "text-chart-3" },
+    { label: "Prontuários Atualizados", value: String(prontuariosAtualizados), icon: FileHeart, color: "text-chart-3" },
     { label: "Receita Mensal", value: "—", icon: TrendingUp, color: "text-chart-1" },
   ];
 
   return (
     <div className="space-y-6">
-      {/* CRO Alert Banner */}
       {croAlert && !croAlertDismissed && (
         <Alert variant="destructive" className="flex items-center justify-between">
           <div className="flex items-center gap-2">
