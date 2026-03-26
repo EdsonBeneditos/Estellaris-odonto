@@ -513,7 +513,7 @@ export default function Agenda() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[11px]">Início *</Label>
-                <Input type="time" value={newTimeStart} onChange={e => setNewTimeStart(e.target.value)} className="h-8 text-xs" />
+                <Input type="time" value={newTimeStart} onChange={e => setNewTimeStart(e.target.value)} className="h-8 text-xs [&::-webkit-calendar-picker-indicator]:dark:invert" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">Fim *</Label>
