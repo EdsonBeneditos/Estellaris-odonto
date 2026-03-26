@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { formatCPF } from "@/lib/validators";
-import { Search, Save, FileHeart, User, CheckCircle2, Clock } from "lucide-react";
+import { generateClinicalSummary } from "@/lib/generateClinicalSummary";
+import { Search, Save, FileHeart, User, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 
@@ -21,15 +22,6 @@ interface Patient {
   data_nascimento: string | null;
 }
 
-interface ToothEntry {
-  tooth: number;
-  surface?: string;
-  diagnosis?: string;
-  status?: string;
-  date?: string;
-  professional?: string;
-}
-
 export default function DigitalRecord() {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -38,24 +30,27 @@ export default function DigitalRecord() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [anamnese, setAnamnese] = useState("");
   const [recordId, setRecordId] = useState<string | null>(null);
-  const [estadoBucal, setEstadoBucal] = useState<ToothEntry[]>([]);
+  const [estadoBucalRaw, setEstadoBucalRaw] = useState<Json | null>(null);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clinicalSummary = generateClinicalSummary(estadoBucalRaw);
 
   const searchPatient = async (cpf?: string) => {
     const searchCpf = (cpf ?? cpfSearch).replace(/\D/g, "");
     if (searchCpf.length < 11) return;
     setSearching(true);
     setPatient(null);
-    setEstadoBucal([]);
+    setEstadoBucalRaw(null);
+    setAnamnese("");
+    setRecordId(null);
 
-    const { data: patients } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("cpf", searchCpf)
-      .limit(1);
+    // 1. Find patient by CPF (+ organization_id for multi-tenant isolation)
+    const query = supabase.from("patients").select("*").eq("cpf", searchCpf);
+    if (profile?.organization_id) query.eq("organization_id", profile.organization_id);
+    const { data: patients } = await query.limit(1);
 
     if (!patients?.length) {
       toast({ title: "Paciente não encontrado", variant: "destructive" });
@@ -66,50 +61,22 @@ export default function DigitalRecord() {
     const p = patients[0];
     setPatient(p);
 
-    const { data: records } = await supabase
+    // 2. Load medical_records using the same patient_id + organization_id
+    const recQuery = supabase
       .from("medical_records")
       .select("id, anamnese, estado_bucal")
-      .eq("patient_id", p.id)
-      .limit(1);
+      .eq("patient_id", p.id);
+    if (profile?.organization_id) recQuery.eq("organization_id", profile.organization_id);
+    const { data: records } = await recQuery.limit(1);
 
     if (records?.length) {
       setRecordId(records[0].id);
       setAnamnese(records[0].anamnese ?? "");
-      // Parse estado_bucal JSONB
-      const bucal = records[0].estado_bucal;
-      if (bucal && typeof bucal === "object" && !Array.isArray(bucal)) {
-        // Convert object format { "16": {...}, ... } to array
-        const entries: ToothEntry[] = [];
-        const bucalObj = bucal as Record<string, Json>;
-        Object.entries(bucalObj).forEach(([toothKey, toothData]) => {
-          if (toothData && typeof toothData === "object" && !Array.isArray(toothData)) {
-            const td = toothData as Record<string, Json>;
-            const surfaces = td.surfaces as Record<string, Json> | undefined;
-            if (surfaces) {
-              Object.entries(surfaces).forEach(([surfKey, surfData]) => {
-                if (surfData && typeof surfData === "object" && !Array.isArray(surfData)) {
-                  const sd = surfData as Record<string, Json>;
-                  entries.push({
-                    tooth: parseInt(toothKey),
-                    surface: surfKey,
-                    diagnosis: sd.diagnosis as string | undefined,
-                    status: sd.status as string | undefined,
-                    date: sd.date as string | undefined,
-                    professional: sd.professional as string | undefined,
-                  });
-                }
-              });
-            }
-          }
-        });
-        setEstadoBucal(entries);
-      } else if (Array.isArray(bucal)) {
-        setEstadoBucal(bucal as unknown as ToothEntry[]);
-      }
+      setEstadoBucalRaw(records[0].estado_bucal);
     } else {
       setRecordId(null);
       setAnamnese("");
-      setEstadoBucal([]);
+      setEstadoBucalRaw(null);
     }
     setSearching(false);
   };
@@ -120,23 +87,35 @@ export default function DigitalRecord() {
       setCpfSearch(cpf);
       searchPatient(cpf);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Upsert anamnese — insert if no record exists, update if it does
   const persistAnamnese = useCallback(async (text: string) => {
     if (!patient || !profile?.organization_id) return;
     setSaving(true);
 
-    const payload = {
-      patient_id: patient.id,
-      organization_id: profile.organization_id,
-      anamnese: text || null,
-      updated_at: new Date().toISOString(),
-    };
-
     if (recordId) {
-      await supabase.from("medical_records").update(payload).eq("id", recordId);
+      // UPDATE existing record (preserve estado_bucal)
+      await supabase
+        .from("medical_records")
+        .update({
+          anamnese: text || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", recordId);
     } else {
-      const { data } = await supabase.from("medical_records").insert(payload).select("id").single();
+      // INSERT new record
+      const { data } = await supabase
+        .from("medical_records")
+        .insert({
+          patient_id: patient.id,
+          organization_id: profile.organization_id,
+          anamnese: text || null,
+          updated_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
       if (data) setRecordId(data.id);
     }
 
@@ -155,19 +134,10 @@ export default function DigitalRecord() {
     scheduleAutoSave(text);
   };
 
-  const getStatusLabel = (status?: string) => {
-    switch (status) {
-      case "diagnosis": return "Necessita tratar";
-      case "in_progress": return "Em andamento";
-      case "completed": return "Concluído";
-      default: return status ?? "—";
-    }
-  };
-
-  const getStatusColor = (status?: string) => {
-    switch (status) {
-      case "diagnosis": return "text-destructive";
-      case "in_progress": return "text-[hsl(var(--tooth-in-progress))]";
+  const getPhaseColorClass = (color: string) => {
+    switch (color) {
+      case "destructive": return "text-destructive";
+      case "warning": return "text-[hsl(var(--tooth-in-progress))]";
       case "completed": return "text-[hsl(var(--tooth-completed))]";
       default: return "text-muted-foreground";
     }
@@ -248,42 +218,59 @@ export default function DigitalRecord() {
         </Card>
       )}
 
-      {/* Procedure History from estado_bucal JSONB */}
-      {patient && estadoBucal.length > 0 && (
+      {/* Clinical Summary from JSONB estado_bucal */}
+      {patient && (
         <Card className="border-border/50">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-display flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" /> Histórico de Procedimentos
+              <Clock className="h-5 w-5 text-primary" /> Histórico de Procedimentos (Resumo do Odontograma)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {estadoBucal
-                .filter(e => e.diagnosis || e.status)
-                .sort((a, b) => (a.tooth ?? 0) - (b.tooth ?? 0))
-                .map((entry, idx) => (
-                  <div key={idx} className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+            {clinicalSummary.length === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <AlertCircle className="h-4 w-4" />
+                Nenhum histórico dentário registrado para este paciente.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {clinicalSummary.map((entry) => (
+                  <div key={entry.tooth} className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 text-sm">
                     <div className="shrink-0 w-16 font-semibold text-foreground">Dente {entry.tooth}</div>
                     <div className="flex-1 space-y-0.5">
                       <p>
                         <span className="text-muted-foreground">Diagnóstico:</span>{" "}
-                        <span className="font-medium">{entry.diagnosis ?? "—"}</span>
+                        <span className="font-medium">{entry.conditionLabel}</span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">Status:</span>{" "}
-                        <span className={`font-medium ${getStatusColor(entry.status)}`}>{getStatusLabel(entry.status)}</span>
+                        <span className={`font-medium ${getPhaseColorClass(entry.phaseColor)}`}>
+                          {entry.phaseLabel}
+                        </span>
                       </p>
-                      {entry.surface && (
-                        <p className="text-xs text-muted-foreground">Superfície: {entry.surface}</p>
+                      {entry.surfaces.length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {entry.surfaces.map((s, i) => (
+                            <span key={i}>{s.label}: {s.condition}{i < entry.surfaces.length - 1 ? " · " : ""}</span>
+                          ))}
+                        </div>
                       )}
-                    </div>
-                    <div className="text-right text-xs text-muted-foreground shrink-0">
-                      {entry.date ? format(new Date(entry.date), "dd/MM/yyyy") : "—"}
-                      {entry.professional && <p>{entry.professional}</p>}
+                      {entry.evolution.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {entry.evolution.map((ev, i) => (
+                            <p key={i} className="text-xs text-muted-foreground">
+                              {ev.date ? format(new Date(ev.date), "dd/MM/yyyy") : "—"} — {ev.condition} ({ev.phase})
+                              {ev.professional && ` — ${ev.professional}`}
+                              {ev.notes && ` — ${ev.notes}`}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
