@@ -440,40 +440,6 @@ export default function Agenda() {
         <span className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-destructive" /> Horários ocupados</span>
       </div>
 
-      {/* ========== HISTORY / PATIENT LIST DIALOG ========== */}
-      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] p-0">
-          <DialogHeader className="px-5 pt-5 pb-3">
-            <DialogTitle className="font-display">Lista de Pacientes Marcados</DialogTitle>
-            <DialogDescription>Consultas do mês — inclui histórico de datas passadas.</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh] px-5 pb-5">
-            <div className="space-y-4">
-              {daysInMonth.filter(d => getApptsForDate(d).some(a => a.patient_id)).length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-6">Nenhum paciente marcado neste mês.</p>
-              )}
-              {daysInMonth.filter(d => getApptsForDate(d).some(a => a.patient_id)).map(day => (
-                <div key={day.toISOString()}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 capitalize">
-                    {format(day, "EEEE, dd/MM", { locale: ptBR })}
-                    {isPastDate(day) && <span className="ml-1 text-[10px] text-muted-foreground/60">(passado)</span>}
-                  </p>
-                  <div className="space-y-1">
-                    {getApptsForDate(day).filter(a => a.patient_id).map(appt => (
-                      <div key={appt.id} className="flex items-center gap-3 rounded border border-border px-3 py-1.5 text-xs">
-                        <span className="font-medium w-12">{appt.appointment_time?.slice(0, 5)}</span>
-                        <span className="flex-1 truncate">{appt.patient_name}</span>
-                        <Badge variant="secondary" className="text-[10px]">{appt.treatment_type}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
       {/* ========== DAY DETAIL DIALOG ========== */}
       <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[80vh] p-0">
