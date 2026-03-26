@@ -57,7 +57,6 @@ export default function Agenda() {
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dayDialogOpen, setDayDialogOpen] = useState(false);
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newTimeStart, setNewTimeStart] = useState("08:00");
