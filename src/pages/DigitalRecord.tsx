@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { formatCPF } from "@/lib/validators";
-import { Search, Save, FileHeart, User, CheckCircle2 } from "lucide-react";
+import { Search, Save, FileHeart, User, CheckCircle2, Clock } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
+import { format } from "date-fns";
 
 interface Patient {
   id: string;
@@ -18,6 +19,15 @@ interface Patient {
   cpf: string;
   telefone: string | null;
   data_nascimento: string | null;
+}
+
+interface ToothEntry {
+  tooth: number;
+  surface?: string;
+  diagnosis?: string;
+  status?: string;
+  date?: string;
+  professional?: string;
 }
 
 export default function DigitalRecord() {
@@ -28,6 +38,7 @@ export default function DigitalRecord() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [anamnese, setAnamnese] = useState("");
   const [recordId, setRecordId] = useState<string | null>(null);
+  const [estadoBucal, setEstadoBucal] = useState<ToothEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
@@ -38,6 +49,7 @@ export default function DigitalRecord() {
     if (searchCpf.length < 11) return;
     setSearching(true);
     setPatient(null);
+    setEstadoBucal([]);
 
     const { data: patients } = await supabase
       .from("patients")
@@ -56,16 +68,48 @@ export default function DigitalRecord() {
 
     const { data: records } = await supabase
       .from("medical_records")
-      .select("id, anamnese")
+      .select("id, anamnese, estado_bucal")
       .eq("patient_id", p.id)
       .limit(1);
 
     if (records?.length) {
       setRecordId(records[0].id);
       setAnamnese(records[0].anamnese ?? "");
+      // Parse estado_bucal JSONB
+      const bucal = records[0].estado_bucal;
+      if (bucal && typeof bucal === "object" && !Array.isArray(bucal)) {
+        // Convert object format { "16": {...}, ... } to array
+        const entries: ToothEntry[] = [];
+        const bucalObj = bucal as Record<string, Json>;
+        Object.entries(bucalObj).forEach(([toothKey, toothData]) => {
+          if (toothData && typeof toothData === "object" && !Array.isArray(toothData)) {
+            const td = toothData as Record<string, Json>;
+            const surfaces = td.surfaces as Record<string, Json> | undefined;
+            if (surfaces) {
+              Object.entries(surfaces).forEach(([surfKey, surfData]) => {
+                if (surfData && typeof surfData === "object" && !Array.isArray(surfData)) {
+                  const sd = surfData as Record<string, Json>;
+                  entries.push({
+                    tooth: parseInt(toothKey),
+                    surface: surfKey,
+                    diagnosis: sd.diagnosis as string | undefined,
+                    status: sd.status as string | undefined,
+                    date: sd.date as string | undefined,
+                    professional: sd.professional as string | undefined,
+                  });
+                }
+              });
+            }
+          }
+        });
+        setEstadoBucal(entries);
+      } else if (Array.isArray(bucal)) {
+        setEstadoBucal(bucal as unknown as ToothEntry[]);
+      }
     } else {
       setRecordId(null);
       setAnamnese("");
+      setEstadoBucal([]);
     }
     setSearching(false);
   };
@@ -109,6 +153,24 @@ export default function DigitalRecord() {
   const handleAnamneseChange = (text: string) => {
     setAnamnese(text);
     scheduleAutoSave(text);
+  };
+
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case "diagnosis": return "Necessita tratar";
+      case "in_progress": return "Em andamento";
+      case "completed": return "Concluído";
+      default: return status ?? "—";
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case "diagnosis": return "text-destructive";
+      case "in_progress": return "text-[hsl(var(--tooth-in-progress))]";
+      case "completed": return "text-[hsl(var(--tooth-completed))]";
+      default: return "text-muted-foreground";
+    }
   };
 
   return (
@@ -182,6 +244,46 @@ export default function DigitalRecord() {
               rows={8}
               className="resize-y"
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Procedure History from estado_bucal JSONB */}
+      {patient && estadoBucal.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-display flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" /> Histórico de Procedimentos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {estadoBucal
+                .filter(e => e.diagnosis || e.status)
+                .sort((a, b) => (a.tooth ?? 0) - (b.tooth ?? 0))
+                .map((entry, idx) => (
+                  <div key={idx} className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+                    <div className="shrink-0 w-16 font-semibold text-foreground">Dente {entry.tooth}</div>
+                    <div className="flex-1 space-y-0.5">
+                      <p>
+                        <span className="text-muted-foreground">Diagnóstico:</span>{" "}
+                        <span className="font-medium">{entry.diagnosis ?? "—"}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Status:</span>{" "}
+                        <span className={`font-medium ${getStatusColor(entry.status)}`}>{getStatusLabel(entry.status)}</span>
+                      </p>
+                      {entry.surface && (
+                        <p className="text-xs text-muted-foreground">Superfície: {entry.surface}</p>
+                      )}
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground shrink-0">
+                      {entry.date ? format(new Date(entry.date), "dd/MM/yyyy") : "—"}
+                      {entry.professional && <p>{entry.professional}</p>}
+                    </div>
+                  </div>
+                ))}
+            </div>
           </CardContent>
         </Card>
       )}
