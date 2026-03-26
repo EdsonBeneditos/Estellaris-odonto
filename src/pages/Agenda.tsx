@@ -113,9 +113,8 @@ export default function Agenda() {
     setDayDialogOpen(true);
   };
 
-  const openHistory = () => {
-    setHistoryDialogOpen(true);
-  };
+
+
 
   const openNewAppointment = (prefillTime?: string, slotId?: string) => {
     setNewTimeStart(prefillTime ?? "08:00");
