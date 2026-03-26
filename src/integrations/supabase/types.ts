@@ -80,6 +80,42 @@ export type Database = {
           },
         ]
       }
+      financial_transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          organization_id: string
+          transaction_date: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          organization_id: string
+          transaction_date?: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          organization_id?: string
+          transaction_date?: string
+          type?: string
+        }
+        Relationships: []
+      }
       medical_records: {
         Row: {
           anamnese: string | null
