@@ -344,12 +344,12 @@ export default function Agenda() {
         <h1 className="text-2xl font-display font-bold flex items-center gap-2">
           <CalendarDays className="h-6 w-6 text-primary" /> Agenda
         </h1>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3">
           <button
-            onClick={openHistory}
+            onClick={() => setListView(v => !v)}
             className="text-xs text-primary hover:underline underline-offset-2 font-medium"
           >
-            Lista de pacientes marcados
+            {listView ? "Voltar ao calendário" : "Lista de pacientes marcados"}
           </button>
           <div className="flex items-center gap-2">
             <LayoutGrid className="h-4 w-4 text-muted-foreground" />
