@@ -365,8 +365,8 @@ export default function Agenda() {
       </div>
 
       {!listView ? (
-        <Card className="border-border/50 shadow-sm flex-1">
-          <CardContent className="p-2">
+        <Card className="border-border/50 shadow-sm flex-1 overflow-visible">
+          <CardContent className="p-2 pb-3">
             <div className="grid grid-cols-7">
               {weekdays.map(d => (
                 <div key={d} className={`text-center text-[10px] font-medium text-muted-foreground ${rowHeightClass} flex items-center justify-center`}>{d}</div>
@@ -382,8 +382,8 @@ export default function Agenda() {
                   <button
                     key={day.toISOString()}
                     onClick={() => openDay(day)}
-                    className={`${rowHeightClass} aspect-square rounded flex flex-col items-center justify-center gap-0.5 text-xs transition-all
-                      ${todayFlag ? "ring-1 ring-primary font-bold" : ""}
+                    className={`${rowHeightClass} rounded flex flex-col items-center justify-center gap-0.5 text-xs transition-all
+                      ${todayFlag ? "border border-primary bg-primary/8 font-bold" : "border border-transparent"}
                       ${past ? "opacity-50" : ""}
                       bg-card hover:bg-muted/50`}
                   >

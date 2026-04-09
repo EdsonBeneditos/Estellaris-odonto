@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { getToothType, TreatmentPhase, getPhaseColor } from "./types";
 
 interface AnatomicalToothProps {
@@ -11,132 +10,145 @@ interface AnatomicalToothProps {
   hasConditions: boolean;
 }
 
-export function AnatomicalTooth({ toothNumber, x, y, size, isUpper, phase, hasConditions }: AnatomicalToothProps) {
-  const [rootHover, setRootHover] = useState(false);
+/**
+ * Vista oclusal (de cima) do dente — formas anatômicas realistas por tipo.
+ */
+export function AnatomicalTooth({
+  toothNumber,
+  x,
+  y,
+  size,
+  isUpper: _isUpper,
+  phase,
+  hasConditions,
+}: AnatomicalToothProps) {
   const type = getToothType(toothNumber);
-  const w = size;
-  const crownH = size * 0.55;
-  const rootH = size * 0.45;
-  const cx = x + w / 2;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const hw = size / 2;
+  const hh = size / 2;
 
-  const fillColor = hasConditions ? getPhaseColor(phase) : "hsl(var(--muted))";
-  const strokeColor = "hsl(var(--border))";
-  const rootColor = rootHover ? "hsl(0, 50%, 35%)" : "hsl(var(--muted))";
+  const fillColor = hasConditions ? getPhaseColor(phase) : "#F9FAFB";
+  const strokeColor = "#374151";
+  const grooveColor = "#9CA3AF";
 
-  // Crown y and root y depend on upper/lower
-  const crownY = isUpper ? y + rootH : y;
-  const rootY = isUpper ? y : y + crownH;
-  const crownCy = crownY + crownH / 2;
-
-  const crownPath = buildCrownPath(type, cx, crownCy, w, crownH);
-  const rootPaths = buildRootPaths(type, cx, rootY, w, rootH, isUpper);
+  const outerPath = buildOcclusalPath(type, cx, cy, hw, hh);
+  const grooves = buildGrooveLines(type, cx, cy, hw, hh);
 
   return (
-    <g className="transition-colors duration-200">
-      {/* Roots - ultra delicate */}
-      {rootPaths.map((rp, i) => (
-        <path
-          key={i}
-          d={rp}
-          fill={rootColor}
-          stroke={strokeColor}
-          strokeWidth={0.5}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          opacity={0.6}
-          onMouseEnter={() => setRootHover(true)}
-          onMouseLeave={() => setRootHover(false)}
-          className="cursor-pointer transition-all duration-200"
-        />
-      ))}
-      {/* Crown */}
+    <g className="pointer-events-none">
       <path
-        d={crownPath}
+        d={outerPath}
         fill={fillColor}
         stroke={strokeColor}
-        strokeWidth={0.8}
+        strokeWidth={1.5}
         strokeLinejoin="round"
         strokeLinecap="round"
-        opacity={0.9}
       />
+      {grooves.map((d, i) => (
+        <path
+          key={i}
+          d={d}
+          fill="none"
+          stroke={grooveColor}
+          strokeWidth={0.6}
+          strokeLinecap="round"
+          opacity={0.7}
+        />
+      ))}
     </g>
   );
 }
 
-function buildCrownPath(type: "molar" | "premolar" | "canine" | "incisor", cx: number, cy: number, w: number, h: number): string {
-  const hw = w / 2;
-  const hh = h / 2;
-
+/* ─────────────────────────────────────────────────────────────────────────
+   Outer crown outlines — vista oclusal
+───────────────────────────────────────────────────────────────────────── */
+function buildOcclusalPath(
+  type: "molar" | "premolar" | "canine" | "incisor",
+  cx: number,
+  cy: number,
+  hw: number,
+  hh: number,
+): string {
   switch (type) {
     case "molar":
-      return `M${cx - hw * 0.82},${cy + hh * 0.85}
-        Q${cx - hw * 0.92},${cy} ${cx - hw * 0.78},${cy - hh * 0.7}
-        Q${cx - hw * 0.5},${cy - hh * 0.95} ${cx},${cy - hh * 0.85}
-        Q${cx + hw * 0.5},${cy - hh * 0.95} ${cx + hw * 0.78},${cy - hh * 0.7}
-        Q${cx + hw * 0.92},${cy} ${cx + hw * 0.82},${cy + hh * 0.85}
-        Q${cx},${cy + hh} ${cx - hw * 0.82},${cy + hh * 0.85}Z`;
+      // Quadrado arredondado largo — 4 cúspides visíveis nos cantos
+      return [
+        `M ${cx - hw * 0.72},${cy - hh * 0.92}`,
+        `C ${cx - hw * 0.35},${cy - hh * 1.05} ${cx + hw * 0.35},${cy - hh * 1.05} ${cx + hw * 0.72},${cy - hh * 0.92}`,
+        `C ${cx + hw * 1.0},${cy - hh * 0.65} ${cx + hw * 1.0},${cy + hh * 0.65} ${cx + hw * 0.72},${cy + hh * 0.92}`,
+        `C ${cx + hw * 0.35},${cy + hh * 1.05} ${cx - hw * 0.35},${cy + hh * 1.05} ${cx - hw * 0.72},${cy + hh * 0.92}`,
+        `C ${cx - hw * 1.0},${cy + hh * 0.65} ${cx - hw * 1.0},${cy - hh * 0.65} ${cx - hw * 0.72},${cy - hh * 0.92} Z`,
+      ].join(" ");
 
     case "premolar":
-      return `M${cx - hw * 0.68},${cy + hh * 0.85}
-        Q${cx - hw * 0.8},${cy} ${cx - hw * 0.65},${cy - hh * 0.75}
-        Q${cx - hw * 0.3},${cy - hh * 0.95} ${cx},${cy - hh * 0.88}
-        Q${cx + hw * 0.3},${cy - hh * 0.95} ${cx + hw * 0.65},${cy - hh * 0.75}
-        Q${cx + hw * 0.8},${cy} ${cx + hw * 0.68},${cy + hh * 0.85}
-        Q${cx},${cy + hh} ${cx - hw * 0.68},${cy + hh * 0.85}Z`;
+      // Oval com dois bossas: vestibular e lingual
+      return [
+        `M ${cx - hw * 0.55},${cy - hh * 0.9}`,
+        `C ${cx - hw * 0.2},${cy - hh * 1.05} ${cx + hw * 0.2},${cy - hh * 1.05} ${cx + hw * 0.55},${cy - hh * 0.9}`,
+        `C ${cx + hw * 0.85},${cy - hh * 0.6} ${cx + hw * 0.85},${cy + hh * 0.6} ${cx + hw * 0.55},${cy + hh * 0.9}`,
+        `C ${cx + hw * 0.2},${cy + hh * 1.05} ${cx - hw * 0.2},${cy + hh * 1.05} ${cx - hw * 0.55},${cy + hh * 0.9}`,
+        `C ${cx - hw * 0.85},${cy + hh * 0.6} ${cx - hw * 0.85},${cy - hh * 0.6} ${cx - hw * 0.55},${cy - hh * 0.9} Z`,
+      ].join(" ");
 
     case "canine":
-      return `M${cx - hw * 0.5},${cy + hh * 0.85}
-        Q${cx - hw * 0.65},${cy} ${cx - hw * 0.4},${cy - hh * 0.7}
-        Q${cx - hw * 0.15},${cy - hh} ${cx},${cy - hh * 0.95}
-        Q${cx + hw * 0.15},${cy - hh} ${cx + hw * 0.4},${cy - hh * 0.7}
-        Q${cx + hw * 0.65},${cy} ${cx + hw * 0.5},${cy + hh * 0.85}
-        Q${cx},${cy + hh} ${cx - hw * 0.5},${cy + hh * 0.85}Z`;
+      // Formato diamante/pontiagudo — cúspide única
+      return [
+        `M ${cx},${cy - hh * 0.92}`,
+        `C ${cx + hw * 0.45},${cy - hh * 0.65} ${cx + hw * 0.62},${cy - hh * 0.1} ${cx + hw * 0.52},${cy + hh * 0.55}`,
+        `C ${cx + hw * 0.3},${cy + hh * 0.95} ${cx - hw * 0.3},${cy + hh * 0.95} ${cx - hw * 0.52},${cy + hh * 0.55}`,
+        `C ${cx - hw * 0.62},${cy - hh * 0.1} ${cx - hw * 0.45},${cy - hh * 0.65} ${cx},${cy - hh * 0.92} Z`,
+      ].join(" ");
 
-    default: // incisor
-      return `M${cx - hw * 0.45},${cy + hh * 0.85}
-        Q${cx - hw * 0.55},${cy} ${cx - hw * 0.4},${cy - hh * 0.7}
-        Q${cx - hw * 0.15},${cy - hh * 0.95} ${cx},${cy - hh * 0.9}
-        Q${cx + hw * 0.15},${cy - hh * 0.95} ${cx + hw * 0.4},${cy - hh * 0.7}
-        Q${cx + hw * 0.55},${cy} ${cx + hw * 0.45},${cy + hh * 0.85}
-        Q${cx},${cy + hh} ${cx - hw * 0.45},${cy + hh * 0.85}Z`;
+    default:
+      // Incisor — trapézio estreito arredondado
+      return [
+        `M ${cx - hw * 0.38},${cy - hh * 0.88}`,
+        `C ${cx - hw * 0.1},${cy - hh * 1.0} ${cx + hw * 0.1},${cy - hh * 1.0} ${cx + hw * 0.38},${cy - hh * 0.88}`,
+        `C ${cx + hw * 0.55},${cy - hh * 0.55} ${cx + hw * 0.55},${cy + hh * 0.55} ${cx + hw * 0.38},${cy + hh * 0.88}`,
+        `C ${cx + hw * 0.1},${cy + hh * 1.0} ${cx - hw * 0.1},${cy + hh * 1.0} ${cx - hw * 0.38},${cy + hh * 0.88}`,
+        `C ${cx - hw * 0.55},${cy + hh * 0.55} ${cx - hw * 0.55},${cy - hh * 0.55} ${cx - hw * 0.38},${cy - hh * 0.88} Z`,
+      ].join(" ");
   }
 }
 
-function buildRootPaths(type: "molar" | "premolar" | "canine" | "incisor", cx: number, rootY: number, w: number, rootH: number, isUpper: boolean): string[] {
-  const hw = w / 2;
-  const dir = isUpper ? -1 : 1; // roots go up for upper, down for lower
-  const baseY = isUpper ? rootY + rootH : rootY;
-  const tipY = isUpper ? rootY : rootY + rootH;
-
+/* ─────────────────────────────────────────────────────────────────────────
+   Groove lines — sulcos anatômicos internos
+───────────────────────────────────────────────────────────────────────── */
+function buildGrooveLines(
+  type: "molar" | "premolar" | "canine" | "incisor",
+  cx: number,
+  cy: number,
+  hw: number,
+  hh: number,
+): string[] {
   switch (type) {
     case "molar":
-      // 3 roots
+      // Fossa central em cruz + sulcos secundários
       return [
-        // Left root
-        `M${cx - hw * 0.55},${baseY} Q${cx - hw * 0.7},${baseY + (tipY - baseY) * 0.5} ${cx - hw * 0.5},${tipY * 0.95 + baseY * 0.05} Q${cx - hw * 0.3},${baseY + (tipY - baseY) * 0.5} ${cx - hw * 0.2},${baseY}Z`,
-        // Center root
-        `M${cx - hw * 0.12},${baseY} Q${cx - hw * 0.1},${baseY + (tipY - baseY) * 0.6} ${cx},${tipY * 0.85 + baseY * 0.15} Q${cx + hw * 0.1},${baseY + (tipY - baseY) * 0.6} ${cx + hw * 0.12},${baseY}Z`,
-        // Right root
-        `M${cx + hw * 0.2},${baseY} Q${cx + hw * 0.3},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.5},${tipY * 0.95 + baseY * 0.05} Q${cx + hw * 0.7},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.55},${baseY}Z`,
+        `M ${cx - hw * 0.35},${cy} Q ${cx},${cy - hh * 0.15} ${cx + hw * 0.35},${cy}`,
+        `M ${cx},${cy - hh * 0.45} Q ${cx},${cy} ${cx},${cy + hh * 0.45}`,
+        `M ${cx - hw * 0.55},${cy - hh * 0.55} Q ${cx - hw * 0.35},${cy - hh * 0.15} ${cx},${cy - hh * 0.15}`,
+        `M ${cx + hw * 0.55},${cy - hh * 0.55} Q ${cx + hw * 0.35},${cy - hh * 0.15} ${cx},${cy - hh * 0.15}`,
       ];
 
     case "premolar":
-      // 2 roots
+      // Sulco central vestíbulo-lingual
       return [
-        `M${cx - hw * 0.35},${baseY} Q${cx - hw * 0.5},${baseY + (tipY - baseY) * 0.5} ${cx - hw * 0.3},${tipY * 0.9 + baseY * 0.1} Q${cx - hw * 0.1},${baseY + (tipY - baseY) * 0.5} ${cx - hw * 0.05},${baseY}Z`,
-        `M${cx + hw * 0.05},${baseY} Q${cx + hw * 0.1},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.3},${tipY * 0.9 + baseY * 0.1} Q${cx + hw * 0.5},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.35},${baseY}Z`,
+        `M ${cx},${cy - hh * 0.55} Q ${cx + hw * 0.05},${cy} ${cx},${cy + hh * 0.55}`,
+        `M ${cx - hw * 0.3},${cy} Q ${cx},${cy - hh * 0.12} ${cx + hw * 0.3},${cy}`,
       ];
 
     case "canine":
-      // 1 long root
+      // Crista central
       return [
-        `M${cx - hw * 0.2},${baseY} Q${cx - hw * 0.25},${baseY + (tipY - baseY) * 0.5} ${cx},${tipY} Q${cx + hw * 0.25},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.2},${baseY}Z`,
+        `M ${cx},${cy - hh * 0.55} Q ${cx + hw * 0.05},${cy + hh * 0.1} ${cx},${cy + hh * 0.4}`,
       ];
 
-    default: // incisor
-      // 1 root
+    default:
+      // Incisivo — leve crista central
       return [
-        `M${cx - hw * 0.18},${baseY} Q${cx - hw * 0.2},${baseY + (tipY - baseY) * 0.5} ${cx},${tipY * 0.95 + baseY * 0.05} Q${cx + hw * 0.2},${baseY + (tipY - baseY) * 0.5} ${cx + hw * 0.18},${baseY}Z`,
+        `M ${cx},${cy - hh * 0.4} Q ${cx + hw * 0.04},${cy} ${cx},${cy + hh * 0.4}`,
       ];
   }
 }

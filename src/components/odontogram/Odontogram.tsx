@@ -146,6 +146,39 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   const upperY = 5;
   const lowerY = upperY + toothBlockH + archGap;
 
+  // ── Overlay geometry ──────────────────────────────────────────────────
+  // Surface block params (mirrors ToothDiagram internals)
+  const surfaceBlockSize = toothSize * 0.75;   // 21
+  const inner = surfaceBlockSize * 0.28;        // 5.88
+  const outerPad = (surfaceBlockSize - inner * 2) / 2; // 4.62
+  const halfBracketH = outerPad * 0.9;          // height of vestibular strip ≈ 4.16
+
+  // Upper vestibular: surface block starts at anatomyY + toothH + 2
+  const upperSurfaceY = upperY + 9 + toothSize + 2;       // y=44
+  const upperBracketY = upperSurfaceY + outerPad / 2;     // centerY of top strip ≈ 46.3
+
+  // Lower vestibular: surface block starts at lowerY
+  const lowerSurfaceY = lowerY;                            // y=83
+  const lowerBracketY = lowerSurfaceY + outerPad / 2;     // centerY ≈ 85.3
+
+  // Lower lingual: bottom strip of lower surface grid
+  const lowerLingualY = lowerSurfaceY + surfaceBlockSize - outerPad / 2; // ≈ 101.7
+
+  // Bracket half-size
+  const bracketW = 3.5;
+  const bracketH = halfBracketH;
+
+  // For each tooth index, compute center X
+  const toothCenterX = (i: number) => getToothX(i) + toothSize / 2;
+
+  // Contenção: teeth 33–43 in lowerRow
+  // lowerRow = [41,42,43, 44,45,46,47,48, 38,37,36,35,34,33, 32,31]
+  // indices:     0   1  2   3  4  5  6  7   8  9 10 11 12 13  14 15
+  const contenIdx43 = lowerRow.indexOf(43);
+  const contenIdx33 = lowerRow.indexOf(33);
+  const contenX43 = contenIdx43 >= 0 ? toothCenterX(contenIdx43) : 0;
+  const contenX33 = contenIdx33 >= 0 ? toothCenterX(contenIdx33) : 0;
+
   return (
     <div className="space-y-3">
       {/* Tabs */}
@@ -264,6 +297,76 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
                   onSurfaceClick={handleSurfaceClick}
                 />
               ))}
+
+              {/* ── Aparelho overlay ─────────────────────────────── */}
+              {meta.possui_aparelho && (
+                <g className="pointer-events-none">
+                  {/* Arco superior */}
+                  <polyline
+                    points={upperRow.map((_, i) => `${toothCenterX(i)},${upperBracketY}`).join(" ")}
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={0.85}
+                  />
+                  {upperRow.map((_, i) => (
+                    <rect
+                      key={i}
+                      x={toothCenterX(i) - bracketW / 2}
+                      y={upperBracketY - bracketH / 2}
+                      width={bracketW}
+                      height={bracketH}
+                      rx={0.5}
+                      fill="#6B7280"
+                      stroke="#374151"
+                      strokeWidth={0.4}
+                    />
+                  ))}
+
+                  {/* Arco inferior */}
+                  <polyline
+                    points={lowerRow.map((_, i) => `${toothCenterX(i)},${lowerBracketY}`).join(" ")}
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={0.85}
+                  />
+                  {lowerRow.map((_, i) => (
+                    <rect
+                      key={i}
+                      x={toothCenterX(i) - bracketW / 2}
+                      y={lowerBracketY - bracketH / 2}
+                      width={bracketW}
+                      height={bracketH}
+                      rx={0.5}
+                      fill="#6B7280"
+                      stroke="#374151"
+                      strokeWidth={0.4}
+                    />
+                  ))}
+                </g>
+              )}
+
+              {/* ── Contenção overlay (barra lingual inferior 33–43) ── */}
+              {meta.possui_contencao && !deciduous && contenIdx43 >= 0 && contenIdx33 >= 0 && (
+                <g className="pointer-events-none">
+                  <path
+                    d={`M ${contenX43},${lowerLingualY} Q ${(contenX43 + contenX33) / 2},${lowerLingualY + 2} ${contenX33},${lowerLingualY}`}
+                    fill="none"
+                    stroke="#374151"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    opacity={0.75}
+                  />
+                  {/* Pontos de adesão nos caninos */}
+                  <circle cx={contenX43} cy={lowerLingualY} r={1.5} fill="#374151" opacity={0.75} />
+                  <circle cx={contenX33} cy={lowerLingualY} r={1.5} fill="#374151" opacity={0.75} />
+                </g>
+              )}
             </svg>
           </div>
         </>

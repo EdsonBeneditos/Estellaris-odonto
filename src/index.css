@@ -45,10 +45,10 @@
     --sidebar-border: 220 30% 20%;
     --sidebar-ring: 170 55% 50%;
 
-    --tooth-healthy: 220 15% 90%;
-    --tooth-diagnosis: 0 72% 51%;
-    --tooth-in-progress: 45 90% 50%;
-    --tooth-completed: 210 70% 50%;
+    --tooth-healthy: 210 17% 98%;
+    --tooth-diagnosis: 0 84% 60%;
+    --tooth-in-progress: 45 96% 44%;
+    --tooth-completed: 217 91% 60%;
 
     --tooth-carie: 0 72% 51%;
     --tooth-canal: 30 80% 50%;
@@ -103,10 +103,10 @@
     --sidebar-border: 222 25% 14%;
     --sidebar-ring: 170 55% 50%;
 
-    --tooth-healthy: 220 15% 25%;
-    --tooth-diagnosis: 0 62% 45%;
-    --tooth-in-progress: 45 80% 45%;
-    --tooth-completed: 210 60% 45%;
+    --tooth-healthy: 220 10% 30%;
+    --tooth-diagnosis: 0 74% 52%;
+    --tooth-in-progress: 45 86% 42%;
+    --tooth-completed: 217 82% 55%;
 
     --tooth-carie: 0 62% 45%;
     --tooth-canal: 30 70% 45%;
