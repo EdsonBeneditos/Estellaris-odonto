@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, List, LayoutGrid, Clock, Trash2, User } from "lucide-react";
-import { formatCPF } from "@/lib/validators";
+import { formatCPF, formatPhone } from "@/lib/validators";
 import { useNavigate } from "react-router-dom";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths,
@@ -261,14 +261,28 @@ export default function Agenda() {
     fetchAppointments();
   };
 
-  const [hoverPatient, setHoverPatient] = useState<PatientLookup | null>(null);
-  const [hoverApptId, setHoverApptId] = useState<string | null>(null);
+  // Appointment detail modal (T7)
+  const [detailAppt, setDetailAppt] = useState<Appointment | null>(null);
+  const [detailPatient, setDetailPatient] = useState<PatientLookup | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailUpdating, setDetailUpdating] = useState(false);
 
-  const fetchHoverPatient = async (appt: Appointment) => {
-    if (!appt.patient_id || hoverApptId === appt.id) return;
-    setHoverApptId(appt.id);
-    const { data } = await supabase.from("patients").select("id, nome_completo, telefone, cpf").eq("id", appt.patient_id).single();
-    if (data) setHoverPatient(data as PatientLookup);
+  const openDetail = async (appt: Appointment) => {
+    setDetailAppt(appt);
+    setDetailPatient(null);
+    setDetailOpen(true);
+    if (appt.patient_id) {
+      const { data } = await supabase.from("patients").select("id, nome_completo, telefone, cpf").eq("id", appt.patient_id).single();
+      if (data) setDetailPatient(data as PatientLookup);
+    }
+  };
+
+  const handleApptStatusChange = async (appt: Appointment, newStatus: string) => {
+    setDetailUpdating(true);
+    await supabase.from("appointments").update({ status: newStatus }).eq("id", appt.id);
+    setDetailUpdating(false);
+    setDetailAppt(prev => prev ? { ...prev, status: newStatus } : null);
+    fetchAppointments();
   };
 
   const dayAppts = selectedDate ? getApptsForDate(selectedDate) : [];
@@ -278,36 +292,14 @@ export default function Agenda() {
 
   const selectedDateIsPast = selectedDate ? isPastDate(selectedDate) : false;
 
-  const renderPatientPopover = (appt: Appointment) => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          className="text-xs text-primary underline-offset-2 hover:underline flex-1 text-left truncate"
-          onMouseEnter={() => fetchHoverPatient(appt)}
-        >
-          {appt.patient_name}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-60 p-3" side="top">
-        {hoverPatient && hoverApptId === appt.id ? (
-          <div className="space-y-2 text-xs">
-            <p className="font-semibold text-foreground">{hoverPatient.nome_completo}</p>
-            {hoverPatient.telefone && <p className="text-muted-foreground">📞 {hoverPatient.telefone}</p>}
-            <p className="text-muted-foreground">CPF: {formatCPF(hoverPatient.cpf)}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5 text-[11px] h-7 mt-1"
-              onClick={() => navigate(`/pacientes`)}
-            >
-              <User className="h-3 w-3" /> Ver Perfil
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Carregando...</p>
-        )}
-      </PopoverContent>
-    </Popover>
+  // Replaces renderPatientPopover — now opens detail modal (T7)
+  const renderPatientButton = (appt: Appointment) => (
+    <button
+      className="text-xs text-primary underline-offset-2 hover:underline flex-1 text-left truncate"
+      onClick={(e) => { e.stopPropagation(); openDetail(appt); }}
+    >
+      {appt.patient_name}
+    </button>
   );
 
   const renderTimeCell = (appt: Appointment) => {
@@ -410,7 +402,7 @@ export default function Agenda() {
                     <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 group">
                       <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       {renderTimeCell(appt)}
-                      {appt.patient_id ? renderPatientPopover(appt) : (
+                      {appt.patient_id ? renderPatientButton(appt) : (
                         <button
                           className="text-xs text-muted-foreground italic flex-1 text-left hover:text-primary transition-colors cursor-pointer"
                           onClick={() => openNewAppointment(appt.appointment_time?.slice(0, 5), appt.id)}
@@ -456,7 +448,7 @@ export default function Agenda() {
                 <div key={appt.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm group">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   {renderTimeCell(appt)}
-                  {appt.patient_id ? renderPatientPopover(appt) : (
+                  {appt.patient_id ? renderPatientButton(appt) : (
                     <button
                       className="text-xs flex-1 text-left text-muted-foreground italic hover:text-primary transition-colors cursor-pointer"
                       onClick={() => openNewAppointment(appt.appointment_time?.slice(0, 5), appt.id)}
@@ -534,7 +526,7 @@ export default function Agenda() {
             </div>
             <div className="space-y-1">
               <Label className="text-[11px]">Telefone</Label>
-              <Input placeholder="(00) 00000-0000" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="(00) 00000-0000" value={newPhone} onChange={e => setNewPhone(formatPhone(e.target.value))} className="h-8 text-xs" />
             </div>
             <div className="space-y-1">
               <Label className="text-[11px]">Tipo de Tratamento *</Label>
@@ -549,6 +541,65 @@ export default function Agenda() {
               {saving ? "Salvando..." : "Agendar"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== APPOINTMENT DETAIL DIALOG (T7) ========== */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              {detailAppt?.patient_name}
+            </DialogTitle>
+          </DialogHeader>
+          {detailAppt && (
+            <div className="space-y-4 pt-1 text-sm">
+              <div className="space-y-1.5 text-xs">
+                {detailPatient?.cpf && <p><span className="text-muted-foreground">CPF: </span>{formatCPF(detailPatient.cpf)}</p>}
+                {detailPatient?.telefone && <p><span className="text-muted-foreground">Telefone: </span>{detailPatient.telefone}</p>}
+                <p><span className="text-muted-foreground">Tratamento: </span>{detailAppt.treatment_type}</p>
+                <p><span className="text-muted-foreground">Horário: </span>{detailAppt.appointment_time?.slice(0, 5)}</p>
+                <p><span className="text-muted-foreground">Duração: </span>{detailAppt.duration_minutes} min</p>
+                <p><span className="text-muted-foreground">Status: </span>
+                  <span className={`font-medium ${detailAppt.status === "scheduled" ? "text-yellow-500" : detailAppt.status === "completed" ? "text-blue-500" : detailAppt.status === "cancelled" ? "text-red-500" : "text-green-500"}`}>
+                    {detailAppt.status === "scheduled" ? "Agendado" : detailAppt.status === "completed" ? "Concluído" : detailAppt.status === "cancelled" ? "Cancelado" : detailAppt.status === "confirmed" ? "Confirmado" : detailAppt.status}
+                  </span>
+                </p>
+                {detailAppt.notes && <p><span className="text-muted-foreground">Obs: </span>{detailAppt.notes}</p>}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {detailAppt.status !== "confirmed" && detailAppt.status !== "completed" && detailAppt.status !== "cancelled" && (
+                  <Button size="sm" variant="outline" className="text-xs flex-1" disabled={detailUpdating}
+                    onClick={() => handleApptStatusChange(detailAppt, "confirmed")}>
+                    Confirmar presença
+                  </Button>
+                )}
+                {detailAppt.status !== "completed" && detailAppt.status !== "cancelled" && (
+                  <Button size="sm" className="text-xs flex-1" disabled={detailUpdating}
+                    onClick={() => handleApptStatusChange(detailAppt, "completed")}>
+                    Marcar concluído
+                  </Button>
+                )}
+                {detailAppt.status !== "cancelled" && (
+                  <Button size="sm" variant="destructive" className="text-xs w-full" disabled={detailUpdating}
+                    onClick={() => handleApptStatusChange(detailAppt, "cancelled")}>
+                    Cancelar agendamento
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="text-xs flex-1"
+                  onClick={() => { setDetailOpen(false); handleDeleteAppt(detailAppt.id); }}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+                </Button>
+                <Button size="sm" variant="outline" className="text-xs flex-1"
+                  onClick={() => navigate(`/prontuario?cpf=${detailAppt.cpf ?? detailPatient?.cpf ?? ""}`)}>
+                  Ver prontuário
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
