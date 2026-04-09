@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 export function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("nexus-theme") as "light" | "dark") || "dark";
+      // Always default to dark; honour explicit saved preference
+      const saved = localStorage.getItem("nexus-theme");
+      return (saved === "light" || saved === "dark") ? saved : "dark";
     }
     return "dark";
   });
