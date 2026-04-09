@@ -1,4 +1,4 @@
-import { ToothData, SurfaceName, getSurfaceColor } from "./types";
+import { ToothData, SurfaceName, getSurfaceColor, getSurfaceFullLabel } from "./types";
 import { AnatomicalTooth } from "./AnatomicalTooth";
 
 interface ToothDiagramProps {
@@ -95,7 +95,7 @@ export function ToothDiagram({ tooth, x, y, size = 28, isUpper, selected, onToot
           className="tooth-surface"
           onClick={(e) => { e.stopPropagation(); onSurfaceClick(tooth.number, surf.name); }}
         >
-          <title>{surf.name}: {tooth.surfaces[surf.name].condition}</title>
+          <title>{getSurfaceFullLabel(surf.name, isUpper, tooth.number)}: {tooth.surfaces[surf.name].condition}</title>
         </polygon>
       ))}
 

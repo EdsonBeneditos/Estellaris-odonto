@@ -99,6 +99,37 @@ export const SURFACE_LABELS: Record<SurfaceName, string> = {
   oclusal: "O/I",
 };
 
+/**
+ * Returns the context-aware label for a tooth surface:
+ * - "lingual" → "P" (Palatina) for upper teeth, "L" (Lingual) for lower
+ * - "oclusal" → "I" (Incisal) for incisors/canines (unit ≤ 3), "O" (Oclusal) for others
+ */
+export function getSurfaceLabel(
+  surface: SurfaceName,
+  isUpper: boolean,
+  toothNum: number,
+): string {
+  const unit = toothNum % 10;
+  const isAnterior = unit >= 1 && unit <= 3; // incisors (1,2) and canines (3)
+  if (surface === "lingual") return isUpper ? "P" : "L";
+  if (surface === "oclusal") return isAnterior ? "I" : "O";
+  return SURFACE_LABELS[surface]; // V, M, D
+}
+
+export function getSurfaceFullLabel(
+  surface: SurfaceName,
+  isUpper: boolean,
+  toothNum: number,
+): string {
+  const unit = toothNum % 10;
+  const isAnterior = unit >= 1 && unit <= 3;
+  if (surface === "lingual") return isUpper ? "Palatina" : "Lingual";
+  if (surface === "oclusal") return isAnterior ? "Incisal" : "Oclusal";
+  if (surface === "vestibular") return "Vestibular";
+  if (surface === "mesial") return "Mesial";
+  return "Distal";
+}
+
 export const CONDITION_LABELS: Record<ClinicalCondition, string> = {
   healthy: "Saudável",
   protese_coronaria: "Prótese coronária",

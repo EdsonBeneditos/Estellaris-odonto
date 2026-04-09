@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ToothDiagram } from "./ToothDiagram";
 import { ClinicalDialog } from "./ClinicalDialog";
-import { TreatmentFaceDialog, statusToPhase } from "./TreatmentFaceDialog";
+import { TreatmentFaceDialog, SurfaceUpdate } from "./TreatmentFaceDialog";
 import {
   OdontogramData, OdontogramMeta, DEFAULT_META,
   ClinicalCondition, TreatmentPhase, SurfaceName,
@@ -99,27 +99,27 @@ export function Odontogram({
     }
   };
 
-  // Called by TreatmentFaceDialog when a treatment is created/updated
-  const handleSurfaceUpdated = (
-    num: number,
-    surface: SurfaceName,
-    phase: TreatmentPhase,
-    condition: ClinicalCondition,
-  ) => {
-    const tooth = getTooth(num);
-    const newData: OdontogramData = {
-      ...data,
-      [num]: {
-        ...tooth,
-        conditions: tooth.conditions.includes(condition)
-          ? tooth.conditions
-          : [...tooth.conditions, condition],
-        surfaces: {
-          ...tooth.surfaces,
-          [surface]: { condition, phase },
+  // Called by TreatmentFaceDialog when treatments are created/updated
+  const handleSurfaceUpdated = (updates: SurfaceUpdate[]) => {
+    let newData = { ...data };
+    for (const u of updates) {
+      const tooth = newData[u.toothNumber] ?? createEmptyTooth(u.toothNumber);
+      const condition = u.condition as ClinicalCondition;
+      newData = {
+        ...newData,
+        [u.toothNumber]: {
+          ...tooth,
+          phase: u.phase,                               // update tooth-level phase (T3: blue for completed)
+          conditions: tooth.conditions.includes(condition)
+            ? tooth.conditions
+            : [...tooth.conditions, condition],
+          surfaces: {
+            ...tooth.surfaces,
+            [u.faceName]: { condition, phase: u.phase },
+          },
         },
-      },
-    };
+      };
+    }
     onChange(newData);
   };
 
@@ -197,6 +197,39 @@ export function Odontogram({
 
   const upperY = 5;
   const lowerY = upperY + toothBlockH + archGap;
+
+  // ── Arch view — parabolic Y offsets ──────────────────────────────────────
+  const isArchView = viewMode === "arcadas";
+  const archCurveDepth = 18; // px of vertical curvature
+
+  /**
+   * For UPPER row: front teeth (indices 7,8 for 16-tooth, or 4,5 for 10-tooth)
+   * are further DOWN (larger y) → arch opens downward.
+   * midIdx = (n-1)/2 = 7.5. t = (i-7.5)/7.5 → -1..+1
+   * y_offset = depth * (1 - t²)  → 0 at edges, depth at center
+   */
+  const getUpperArchY = (i: number): number => {
+    if (!isArchView) return upperY;
+    const mid = (teethPerRow - 1) / 2;
+    const t = (i - mid) / mid;
+    return upperY + archCurveDepth * (1 - t * t);
+  };
+
+  /**
+   * For LOWER row: front teeth are at the EDGES (idx 0 and n-1).
+   * They should be HIGHER (smaller y) to form the opposite arch.
+   * t = |i - mid| / mid  → 1 at edges (front), 0 at center (back)
+   * y_offset = -depth * t  → negative (up) at front teeth
+   */
+  const getLowerArchY = (i: number): number => {
+    if (!isArchView) return lowerY;
+    const mid = (teethPerRow - 1) / 2;
+    const t = Math.abs(i - mid) / mid;
+    return lowerY - archCurveDepth * t;
+  };
+
+  // Expand SVG height when arch view is active (needs more room for curves)
+  const archExtraH = isArchView ? archCurveDepth + 4 : 0;
 
   // ── Overlay geometry ──────────────────────────────────────────────────
   // Surface block params (mirrors ToothDiagram internals)
@@ -309,7 +342,7 @@ export function Odontogram({
           {/* SVG Odontogram */}
           <div className="overflow-x-auto rounded-xl border border-border bg-card p-3 shadow-sm">
             <svg
-              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              viewBox={`0 0 ${svgWidth} ${svgHeight + archExtraH}`}
               className="w-full max-w-3xl mx-auto"
               style={{ minWidth: 480 }}
             >
@@ -328,7 +361,7 @@ export function Odontogram({
                   key={num}
                   tooth={getTooth(num)}
                   x={getToothX(i)}
-                  y={upperY}
+                  y={getUpperArchY(i)}
                   size={toothSize}
                   isUpper
                   onToothClick={handleToothClick}
@@ -342,7 +375,7 @@ export function Odontogram({
                   key={num}
                   tooth={getTooth(num)}
                   x={getToothX(i)}
-                  y={lowerY}
+                  y={getLowerArchY(i)}
                   size={toothSize}
                   isUpper={false}
                   onToothClick={handleToothClick}
@@ -442,14 +475,14 @@ export function Odontogram({
           open={treatOpen}
           toothNumber={treatToothNum}
           faceName={treatSurface}
+          isUpper={upperRow.includes(treatToothNum)}
+          allToothNumbers={allTeeth}
           patientId={patientId}
           medicalRecordId={medicalRecordId ?? null}
           organizationId={organizationId}
           performedBy={profileId ?? ""}
           performedByName={profileName ?? "Profissional"}
-          onSurfaceUpdated={(phase, condition) =>
-            handleSurfaceUpdated(treatToothNum, treatSurface, phase, condition as ClinicalCondition)
-          }
+          onSurfaceUpdated={handleSurfaceUpdated}
           onClose={() => setTreatOpen(false)}
         />
       )}
