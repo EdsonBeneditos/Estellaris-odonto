@@ -1,3 +1,9 @@
+# Environment variables - NUNCA commitar
+.env
+.env.local
+.env.production
+.env.staging
+
 # Logs
 logs
 *.log
