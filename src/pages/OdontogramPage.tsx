@@ -33,6 +33,7 @@ export default function OdontogramPage() {
   const [odontogramData, setOdontogramData] = useState<OdontogramData>({});
   const [meta, setMeta] = useState<OdontogramMeta>(DEFAULT_META);
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [medicalRecordId, setMedicalRecordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -67,16 +68,23 @@ export default function OdontogramPage() {
   const loadOdontogram = useCallback(async (patientId: string) => {
     const { data: records } = await supabase
       .from("medical_records")
-      .select("estado_bucal")
+      .select("id, estado_bucal")
       .eq("patient_id", patientId)
       .limit(1);
 
-    if (records?.length && records[0].estado_bucal) {
-      const stored = records[0].estado_bucal as any;
-      if (stored.teeth) setOdontogramData(stored.teeth);
-      if (stored.meta) setMeta(stored.meta);
-      toast({ title: "Prontuário carregado!" });
+    if (records?.length) {
+      setMedicalRecordId(records[0].id);
+      if (records[0].estado_bucal) {
+        const stored = records[0].estado_bucal as any;
+        if (stored.teeth) setOdontogramData(stored.teeth);
+        if (stored.meta) setMeta(stored.meta);
+        toast({ title: "Prontuário carregado!" });
+      } else {
+        setOdontogramData({});
+        setMeta(DEFAULT_META);
+      }
     } else {
+      setMedicalRecordId(null);
       setOdontogramData({});
       setMeta(DEFAULT_META);
     }
@@ -147,6 +155,7 @@ export default function OdontogramPage() {
 
   const handleNewOdontogram = () => {
     setPatient(null);
+    setMedicalRecordId(null);
     setOdontogramData({});
     setMeta(DEFAULT_META);
   };
@@ -225,6 +234,9 @@ export default function OdontogramPage() {
             onMetaChange={setMeta}
             profileId={profile?.id}
             profileName={profile?.id_nome}
+            patientId={patient?.id ?? null}
+            medicalRecordId={medicalRecordId}
+            organizationId={profile?.organization_id ?? null}
           />
         </CardContent>
       </Card>

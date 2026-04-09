@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ToothDiagram } from "./ToothDiagram";
 import { ClinicalDialog } from "./ClinicalDialog";
+import { TreatmentFaceDialog, statusToPhase } from "./TreatmentFaceDialog";
 import {
   OdontogramData, OdontogramMeta, DEFAULT_META,
   ClinicalCondition, TreatmentPhase, SurfaceName,
@@ -23,9 +24,23 @@ interface OdontogramProps {
   onMetaChange: (meta: OdontogramMeta) => void;
   profileId?: string;
   profileName?: string;
+  // Patient context — when provided, surface clicks open TreatmentFaceDialog
+  patientId?: string | null;
+  medicalRecordId?: string | null;
+  organizationId?: string | null;
 }
 
-export function Odontogram({ data, meta, onChange, onMetaChange, profileId, profileName }: OdontogramProps) {
+export function Odontogram({
+  data,
+  meta,
+  onChange,
+  onMetaChange,
+  profileId,
+  profileName,
+  patientId,
+  medicalRecordId,
+  organizationId,
+}: OdontogramProps) {
   const [activeTab, setActiveTab] = useState("odontograma");
   const [deciduous, setDeciduous] = useState(false);
   const [viewMode, setViewMode] = useState("dentes");
@@ -34,6 +49,11 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogToothNum, setDialogToothNum] = useState<number>(0);
   const [dialogSurface, setDialogSurface] = useState<SurfaceName | null>(null);
+
+  // TreatmentFaceDialog state (used when patient is linked)
+  const [treatOpen, setTreatOpen] = useState(false);
+  const [treatToothNum, setTreatToothNum] = useState<number>(0);
+  const [treatSurface, setTreatSurface] = useState<SurfaceName>("oclusal");
 
   const upperRight = deciduous ? DECIDUOUS_UPPER_RIGHT : PERMANENT_UPPER_RIGHT;
   const upperLeft = deciduous ? DECIDUOUS_UPPER_LEFT : PERMANENT_UPPER_LEFT;
@@ -66,9 +86,41 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
   };
 
   const handleSurfaceClick = (num: number, surface: SurfaceName) => {
-    setDialogToothNum(num);
-    setDialogSurface(surface);
-    setDialogOpen(true);
+    if (patientId && organizationId) {
+      // Patient linked → use TreatmentFaceDialog (Supabase-backed workflow)
+      setTreatToothNum(num);
+      setTreatSurface(surface);
+      setTreatOpen(true);
+    } else {
+      // No patient → use legacy ClinicalDialog (local state only)
+      setDialogToothNum(num);
+      setDialogSurface(surface);
+      setDialogOpen(true);
+    }
+  };
+
+  // Called by TreatmentFaceDialog when a treatment is created/updated
+  const handleSurfaceUpdated = (
+    num: number,
+    surface: SurfaceName,
+    phase: TreatmentPhase,
+    condition: ClinicalCondition,
+  ) => {
+    const tooth = getTooth(num);
+    const newData: OdontogramData = {
+      ...data,
+      [num]: {
+        ...tooth,
+        conditions: tooth.conditions.includes(condition)
+          ? tooth.conditions
+          : [...tooth.conditions, condition],
+        surfaces: {
+          ...tooth.surfaces,
+          [surface]: { condition, phase },
+        },
+      },
+    };
+    onChange(newData);
   };
 
   const handleToothClick = (num: number) => {
@@ -384,6 +436,25 @@ export function Odontogram({ data, meta, onChange, onMetaChange, profileId, prof
         </div>
       )}
 
+      {/* Treatment face dialog — Supabase-backed, used when patient is linked */}
+      {treatToothNum > 0 && patientId && organizationId && (
+        <TreatmentFaceDialog
+          open={treatOpen}
+          toothNumber={treatToothNum}
+          faceName={treatSurface}
+          patientId={patientId}
+          medicalRecordId={medicalRecordId ?? null}
+          organizationId={organizationId}
+          performedBy={profileId ?? ""}
+          performedByName={profileName ?? "Profissional"}
+          onSurfaceUpdated={(phase, condition) =>
+            handleSurfaceUpdated(treatToothNum, treatSurface, phase, condition as ClinicalCondition)
+          }
+          onClose={() => setTreatOpen(false)}
+        />
+      )}
+
+      {/* Legacy clinical dialog — used without patient linked */}
       {dialogToothNum > 0 && (
         <ClinicalDialog
           open={dialogOpen}
